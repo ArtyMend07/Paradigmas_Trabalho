@@ -16,3 +16,9 @@ verdes([P|Ps], [R|Rs], [pendente(P)|Marcas], [R|Sobras]) :-
 amarelos([], _, []).
 amarelos([green|Marcas], Sobras, [green|Cores]) :-
     amarelos(Marcas, Sobras, Cores).
+amarelos([pendente(Letra)|Marcas], Sobras, [yellow|Cores]) :-
+    selectchk(Letra, Sobras, Restantes),
+    !,
+    amarelos(Marcas, Restantes, Cores).
+amarelos([pendente(_)|Marcas], Sobras, [gray|Cores]) :-
+    amarelos(Marcas, Sobras, Cores).
