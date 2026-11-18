@@ -25,6 +25,12 @@ test(repetida_no_palpite_uma_na_resposta, Cores == [yellow, yellow, gray, green,
 test(acerto, Cores == [green, green, green, green, green]) :-
     feedback(termo, termo, Cores).
 
+test(verifica_cores_instanciadas) :-
+    feedback(terra, barre, [gray, yellow, green, green, yellow]).
+
+test(rejeita_gray_onde_deveria_ser_yellow, [fail]) :-
+    feedback(terra, barre, [gray, gray, green, green, yellow]).
+
 test(nenhuma_letra_em_comum, Cores == [gray, gray, gray, gray, gray]) :-
     feedback(pulha, termo, Cores).
 

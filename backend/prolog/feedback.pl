@@ -1,5 +1,7 @@
 :- module(feedback, [feedback/3]).
 
+:- encoding(utf8).
+
 feedback(Palpite, Resposta, Cores) :-
     atom_chars(Palpite, LetrasPalpite),
     atom_chars(Resposta, LetrasResposta),
@@ -16,9 +18,11 @@ verdes([P|Ps], [R|Rs], [pendente(P)|Marcas], [R|Sobras]) :-
 amarelos([], _, []).
 amarelos([green|Marcas], Sobras, [green|Cores]) :-
     amarelos(Marcas, Sobras, Cores).
-amarelos([pendente(Letra)|Marcas], Sobras, [yellow|Cores]) :-
-    selectchk(Letra, Sobras, Restantes),
-    !,
+amarelos([pendente(Letra)|Marcas], Sobras, [Cor|Cores]) :-
+    (   selectchk(Letra, Sobras, Restantes)
+    ->  Cor0 = yellow
+    ;   Cor0 = gray,
+        Restantes = Sobras
+    ),
+    Cor = Cor0,
     amarelos(Marcas, Restantes, Cores).
-amarelos([pendente(_)|Marcas], Sobras, [gray|Cores]) :-
-    amarelos(Marcas, Sobras, Cores).
