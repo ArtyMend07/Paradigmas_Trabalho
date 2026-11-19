@@ -1,4 +1,4 @@
-module Api exposing
+module ApiSudoku exposing
     ( Difficulty(..)
     , Hint
     , difficultyLabel

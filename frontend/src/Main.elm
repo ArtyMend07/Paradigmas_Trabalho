@@ -16,7 +16,7 @@ Não há variáveis globais nem alterações "escondidas" do estado.
 
 -}
 
-import Api exposing (Difficulty(..))
+import ApiSudoku as Api exposing (Difficulty(..))
 import Browser
 import Browser.Events
 import Html exposing (Html, aside, button, div, footer, h1, header, input, label, main_, span, text)
