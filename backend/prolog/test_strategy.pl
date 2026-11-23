@@ -2,6 +2,7 @@
 :- use_module(feedback).
 :- use_module(candidates).
 :- use_module(words).
+:- use_module(autoplay).
 :- use_module(library(plunit)).
 
 :- encoding(utf8).
@@ -14,7 +15,10 @@
 
 carrega_base :-
     arquivo_palavras(Arquivo),
-    load_words(Arquivo).
+    load_words(Arquivo),
+    file_directory_name(Arquivo, Dir),
+    directory_file_path(Dir, 'respostas.txt', Respostas),
+    load_respostas(Respostas).
 
 %   rapido(:Objetivo): Objetivo é executado em menos de 2 s de CPU.
 :- meta_predicate rapido(0).
@@ -25,21 +29,6 @@ rapido(Objetivo) :-
     Tempo is T1 - T0,
     assertion(Tempo < 2.0).
 
-%   joga(+Resposta, -Passos): mesmo laço do autoplay/2 (#2), usado aqui
-%   enquanto autoplay.pl não está disponível.
-joga(Resposta, Passos) :-
-    joga(Resposta, [], Passos).
-
-joga(Resposta, Historico, Passos) :-
-    best_guess(Historico, Palpite, _),
-    feedback(Palpite, Resposta, Cores),
-    append(Historico, [[Palpite, Cores]], Historico1),
-    (   Palpite == Resposta
-    ->  Passos = Historico1
-    ;   length(Historico1, L),
-        L < 10,
-        joga(Resposta, Historico1, Passos)
-    ).
 
 :- begin_tests(strategy, [setup(carrega_base)]).
 
@@ -101,7 +90,7 @@ test(rapido_apos_abertura) :-
 
 test(acerta_em_ate_6_tentativas) :-
     forall(member(R, [carro, termo, pasta, sorte, mundo, papai, jarro]),
-           ( joga(R, Passos),
+           ( autoplay(R, Passos),
              last(Passos, [Ultimo, Cores]),
              assertion(Ultimo == R),
              assertion(Cores == [green, green, green, green, green]),
