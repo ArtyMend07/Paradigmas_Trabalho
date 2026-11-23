@@ -2,7 +2,7 @@ module Main exposing (main)
 
 {-| Interface gráfica do solver de Termo na Arquitetura Elm.
 
-Dois modos de operação:
+Três modos de operação:
 
   - `Assistente`: o jogador digita o palpite feito no Termo, define a cor de
     cada letra (clicando nas casas ou pressionando as teclas 1 a 5) e confirma
@@ -10,6 +10,8 @@ Dois modos de operação:
     palpite com o motivo.
   - `Automatico`: o jogador informa uma palavra de 5 letras e o solver mostra
     na grade 6×5 todos os passos até acertá-la.
+  - `Caos`: o servidor sorteia a palavra e, a cada 2 palpites, aplica um
+    efeito aleatório à partida (#14). Fica todo no módulo `PaginaCaos`.
 
 As chamadas HTTP ficam a cargo do módulo `Api.elm` (#6). Enquanto isso, as
 funções na seção "DADOS FIXOS" produzem respostas no mesmo formato
@@ -23,6 +25,7 @@ import Html exposing (Html, aside, button, div, footer, form, h1, header, input,
 import Html.Attributes exposing (attribute, checked, class, classList, disabled, maxlength, placeholder, title, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput, onSubmit)
 import Json.Decode as Decode exposing (Decoder)
+import PaginaCaos
 import Task
 import Teclado exposing (Tecla(..))
 import Termo exposing (Casa(..), Cor(..), Jogo, Palpite, Remoto(..))
@@ -65,6 +68,7 @@ type alias Sugestao =
 type Modo
     = Assistente
     | Automatico
+    | Caos
 
 
 type alias Model =
@@ -76,6 +80,7 @@ type alias Model =
     , autoplay : Remoto (List Palpite)
     , erroLocal : Maybe String
     , temaEscuro : Bool
+    , caos : PaginaCaos.Model
     }
 
 
@@ -89,6 +94,7 @@ init flags =
       , autoplay = NaoPedido
       , erroLocal = Nothing
       , temaEscuro = flags.darkTheme
+      , caos = PaginaCaos.inicial
       }
     , cmdSugerir [] (RecebeuSugestao 0)
     )
@@ -111,15 +117,31 @@ type Msg
     | RecebeuAutoplay String (Result String (List Palpite))
     | TemaAlterado Bool
     | ErroFechado
+    | CaosMsg PaginaCaos.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ModoAlterado novoModo ->
-            ( { model | modo = novoModo, erroLocal = Nothing }
-            , Cmd.none
+            let
+                ( caos, cmdCaos ) =
+                    if novoModo == Caos then
+                        PaginaCaos.aoEntrar model.caos
+
+                    else
+                        ( model.caos, Cmd.none )
+            in
+            ( { model | modo = novoModo, erroLocal = Nothing, caos = caos }
+            , Cmd.map CaosMsg cmdCaos
             )
+
+        CaosMsg caosMsg ->
+            let
+                ( caos, cmdCaos ) =
+                    PaginaCaos.update caosMsg model.caos
+            in
+            ( { model | caos = caos }, Cmd.map CaosMsg cmdCaos )
 
         TeclaPressionada tecla ->
             if model.modo /= Assistente then
@@ -341,6 +363,9 @@ subscriptions model =
         Automatico ->
             Sub.none
 
+        Caos ->
+            Sub.map CaosMsg PaginaCaos.subscriptions
+
 
 teclaDecoder : Decoder Msg
 teclaDecoder =
@@ -412,14 +437,7 @@ view model =
             ]
         , main_ [ class "app-main" ]
             [ div [ class "app-container game" ]
-                [ div [ class "area-jogo" ]
-                    [ viewGrade model
-                    , if model.modo == Assistente then
-                        Teclado.viewTeclado TeclaPressionada model.jogo
-
-                      else
-                        text ""
-                    ]
+                [ div [ class "area-jogo" ] (viewAreaDeJogo model)
                 , aside [ class "side-panel" ]
                     ([ span [ class "panel-label" ] [ text "Modo" ]
                      , viewSeletorModo model.modo
@@ -431,6 +449,19 @@ view model =
             ]
         , viewRodape model.modo
         ]
+
+
+viewAreaDeJogo : Model -> List (Html Msg)
+viewAreaDeJogo model =
+    case model.modo of
+        Assistente ->
+            [ viewGrade model, Teclado.viewTeclado TeclaPressionada model.jogo ]
+
+        Automatico ->
+            [ viewGrade model ]
+
+        Caos ->
+            [ Html.map CaosMsg (PaginaCaos.viewJogo model.caos) ]
 
 
 viewThemeToggle : Model -> Html Msg
@@ -454,6 +485,7 @@ viewSeletorModo atual =
     div [ class "modo-seletor" ]
         [ viewOpcaoModo atual Assistente "Assistente"
         , viewOpcaoModo atual Automatico "Automático"
+        , viewOpcaoModo atual Caos "Caos"
         ]
 
 
@@ -480,6 +512,9 @@ viewGrade model =
 
                 Automatico ->
                     jogoDoAutoplay model.autoplay
+
+                Caos ->
+                    Termo.novoJogo
 
         podeEditar =
             model.modo == Assistente && not (Termo.terminou model.jogo)
@@ -635,6 +670,9 @@ erroRemotoDoModo model =
                 _ ->
                     Nothing
 
+        Caos ->
+            Nothing
+
 
 estaCarregando : Model -> Bool
 estaCarregando model =
@@ -644,6 +682,9 @@ estaCarregando model =
 
         Automatico ->
             model.autoplay == Carregando
+
+        Caos ->
+            False
 
 
 viewEstadoDaPartida : Model -> Html Msg
@@ -693,6 +734,9 @@ viewEstadoDaPartida model =
 
                 _ ->
                     text ""
+
+        Caos ->
+            text ""
 
 
 acertouNosPassos : List Palpite -> Bool
@@ -752,6 +796,9 @@ viewPainelDoModo model =
                     [ text "Informe uma palavra de 5 letras sem acentos para o Prolog jogar sozinho até acertá-la." ]
                 ]
             ]
+
+        Caos ->
+            List.map (Html.map CaosMsg) (PaginaCaos.viewPainel model.caos)
 
 
 viewSecaoSugestao : Model -> Html Msg
@@ -878,6 +925,9 @@ viewRodape modo =
                 , kbd [] [ text "Enter" ]
                 , text " para ver o solver jogar sozinho."
                 ]
+
+            Caos ->
+                PaginaCaos.viewRodape
         )
 
 

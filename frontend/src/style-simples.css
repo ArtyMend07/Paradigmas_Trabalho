@@ -228,4 +228,26 @@
   .tecla--verde   { @apply btn-success; }
   .tecla--amarela { @apply btn-warning; }
   .tecla--cinza   { @apply btn-neutral opacity-60; }
+
+
+  /* ---------- Modo caos (#14) ---------- */
+
+  .linha--caos {
+    @apply grid-cols-[repeat(5,auto)_auto] items-center;
+  }
+
+  .casa--sem-cor { @apply border-base-content/40 bg-base-200 text-base-content; }
+  .casa--oculta  { @apply border-dashed border-base-content/40 bg-base-100 text-base-content/60; }
+
+  .linha-contagem {
+    @apply badge badge-outline whitespace-nowrap font-mono;
+  }
+
+  .caos-efeito {
+    @apply flex-col items-start gap-0.5;
+  }
+
+  .caos-efeito-nome {
+    @apply font-bold;
+  }
 }
