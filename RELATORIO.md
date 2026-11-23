@@ -284,6 +284,7 @@ módulos `Y.elm` e `Z.elm` foram escritos pelo grupo."]
 
 | Ferramenta | Para que foi usada | Como o grupo verificou o resultado |
 |------------|--------------------|------------------------------------|
+| Claude (Anthropic) | Issue #2 (João Pedro): auxiliou na escrita do `autoplay.pl` e o `candidates.pl`; aprimorou texto | Testes plunit (`make test-prolog`); `feedback/3` e `candidates/2` comparados com uma implementação de referência em 3.000 pares e 25 jogos aleatórios; `autoplay/2` testado com o `best_guess/3` provisório e com um `strategy.pl` simulado; revisados pelo integrante |
 | [Nome ou "nenhuma"] | [...] | [...] |
 
 ## 12. Apresentação oral
