@@ -1,41 +1,13 @@
 /* ==========================================================================
-   style-simples.css: versão minimalista do visual do Sudoku.
+   style-simples.css: estilos da interface do Termo (Tailwind + daisyUI).
 
-   Este arquivo é um ponto de partida mais fácil que o style.css. Ele define
-   as MESMAS classes (o Elm não muda), mas quase só com `@apply`, sem
-   gradientes, animações, fontes extras ou seletores avançados.
+   As classes aqui são semânticas: o Elm descreve O QUE o elemento é
+   (`grade`, `casa`, `sugestao-card`), e este arquivo define COMO ele aparece
+   usando `@apply` sobre utilitários do Tailwind e componentes do daisyUI.
 
-   Para usar este arquivo no lugar do style.css, troque o `import` no início
-   de src/main.js.
-
-   COMO LER UMA REGRA COM @apply
-   -----------------------------
-   O Elm escreve nomes que dizem O QUE o elemento é: `class "board"`. Aqui
-   dizemos COMO ele aparece, usando as classes utilitárias do Tailwind:
-
-       .board { @apply grid grid-cols-9 border-2; }
-
-   O `@apply` copia o CSS dessas classes para dentro de `.board`. Cada
-   utilitário faz uma coisa só:
-
-       grid          display: grid
-       grid-cols-9   9 colunas do mesmo tamanho
-       border-2      borda de 2px
-       p-4           padding (espaço interno) de 1rem em todos os lados
-       gap-2         espaço de 0.5rem entre os itens de um grid/flex
-       sm:...        só a partir de telas "small" (640px)
-       lg:...        só a partir de telas "large" (1024px)
-
-   Consulte qualquer utilitário em https://tailwindcss.com/docs
-
-   Os nomes como `btn`, `alert`, `badge` e `join` são componentes prontos
-   do daisyUI: https://daisyui.com/components/
-
-   CORES
-   -----
-   Use sempre as cores do tema (`bg-base-100`, `text-primary`, `bg-error`),
-   e não cores fixas como `bg-white`. Assim o tema escuro funciona sozinho.
-   `bg-primary/10` significa: cor primária com 10% de opacidade.
+   Use sempre as cores do tema (`bg-base-100`, `bg-success`, `bg-warning`,
+   `bg-neutral`), para que a alternância entre tema claro e escuro funcione
+   automaticamente.
    ========================================================================== */
 
 @import "tailwindcss";
@@ -44,8 +16,7 @@
 @source "./**/*.elm";
 
 /* Temas prontos do daisyUI. O botão sol/lua do cabeçalho alterna para o
-   tema `dark`. Para ver outros temas (cupcake, retro, synthwave...), veja
-   https://daisyui.com/docs/themes/ */
+   tema `dark`. */
 @plugin "daisyui" {
   themes: light --default, dark;
 }
@@ -61,7 +32,7 @@
   /* Largura do conteúdo. O cabeçalho e o jogo usam esta mesma classe, então
      suas bordas ficam alinhadas. */
   .app-container {
-    @apply mx-auto w-full max-w-md lg:max-w-3xl;
+    @apply mx-auto w-full max-w-md lg:max-w-4xl;
   }
 
   .app-header {
@@ -73,7 +44,7 @@
   }
 
   .app-title {
-    @apply text-2xl font-bold;
+    @apply text-2xl font-bold tracking-tight;
   }
 
   .app-subtitle {
@@ -91,22 +62,25 @@
   }
 
   .app-footer {
-    @apply p-4 text-center text-sm opacity-60;
+    @apply p-4 text-center text-sm opacity-70;
   }
 
-  /* Seletor de descendente: todo `<kbd>` que estiver dentro do rodapé. */
   .app-footer kbd {
     @apply kbd kbd-sm;
   }
 
 
-  /* ---------- Layout do jogo ----------
-     Celular: uma coluna (tabuleiro em cima, painel embaixo).
-     Tela grande: duas colunas; o tabuleiro ocupa o seu tamanho (`auto`) e o
-     painel ocupa o resto (`1fr`, "uma fração" do espaço livre). */
+  /* ---------- Layout principal ----------
+     Celular: uma coluna (grade + teclado em cima, painel embaixo).
+     Tela grande: duas colunas; a coluna do jogo ocupa o tamanho natural e o
+     painel lateral ocupa o restante. */
 
   .game {
     @apply grid gap-6 lg:grid-cols-[auto_1fr] lg:items-start;
+  }
+
+  .area-jogo {
+    @apply flex flex-col items-center gap-5;
   }
 
   .side-panel {
@@ -114,156 +88,125 @@
   }
 
   .panel-label {
-    @apply text-xs font-semibold uppercase opacity-60;
+    @apply text-xs font-semibold uppercase tracking-wide opacity-60;
   }
 
-  /* Altura mínima fixa, para o layout não "pular" quando a mensagem aparece
-     e some. `items-center` centraliza a mensagem nessa altura. */
+  /* Altura mínima fixa para o layout não "pular" quando mensagens aparecem. */
   .message-area {
     @apply flex min-h-14 items-center;
   }
 
 
-  /* ---------- Dificuldade e mensagens ---------- */
+  /* ---------- Seletor de modo e mensagens ---------- */
 
-  .difficulty-picker {
+  .modo-seletor {
     @apply join w-full;
   }
 
-  .difficulty-option {
+  .modo-opcao {
     @apply btn join-item flex-1;
   }
 
-  .difficulty-option--active {
+  .modo-opcao--ativo {
     @apply btn-primary;
   }
 
   .message          { @apply alert w-full text-sm; }
   .message--error   { @apply alert-error; }
   .message--success { @apply alert-success; }
+  .message--info    { @apply alert-info; }
   .message--loading { @apply alert-soft; }
   .message-close    { @apply btn btn-ghost btn-xs; }
   .spinner          { @apply loading loading-spinner loading-sm; }
 
 
-  /* ---------- Tabuleiro ----------
-     O tabuleiro é um grid de 9 colunas. Cada casa tem tamanho fixo:
-     w-9/h-9 (2.25rem) no celular e w-12/h-12 (3rem) em telas maiores. */
+  /* ---------- Grade 6×5 do Termo ---------- */
 
-  .board {
-    @apply mx-auto grid w-fit grid-cols-9 border-2 border-base-content bg-base-100;
+  .grade {
+    @apply mx-auto flex w-fit flex-col gap-2;
   }
 
-  .cell {
-    @apply flex h-9 w-9 items-center justify-center border border-base-300 text-lg sm:h-12 sm:w-12 sm:text-2xl;
-    @apply relative cursor-pointer select-none;
+  .linha {
+    @apply grid grid-cols-5 gap-2;
   }
 
-  /* Linhas grossas entre os blocos 3x3.
-     As casas são desenhadas em ordem de leitura (81 filhas do tabuleiro), e
-     `:nth-child` escolhe casas pela posição:
-       :nth-child(9n + 3)   -> casas 3, 12, 21, ... (3ª coluna)
-       :nth-child(9n + 6)   -> casas 6, 15, 24, ... (6ª coluna)
-     Para as linhas horizontais, escolhemos as casas 19 a 27 (3ª linha) e
-     46 a 54 (6ª linha). */
-  .cell:nth-child(9n + 3),
-  .cell:nth-child(9n + 6) {
-    @apply border-r-2 border-r-base-content;
+  .casa {
+    @apply flex h-12 w-12 items-center justify-center rounded-lg border-2 text-2xl font-bold uppercase select-none sm:h-14 sm:w-14 sm:text-3xl;
   }
 
-  .cell:nth-child(n + 19):nth-child(-n + 27),
-  .cell:nth-child(n + 46):nth-child(-n + 54) {
-    @apply border-b-2 border-b-base-content;
+  .casa--vazia {
+    @apply border-base-300 bg-base-100;
   }
 
-  /* A última coluna (casas 9, 18, 27...) e a última linha (casas 73 a 81)
-     encostam na borda do tabuleiro, que já é grossa: sem esta regra, a
-     borda ficaria dupla. */
-  .cell:nth-child(9n)     { @apply border-r-0; }
-  .cell:nth-child(n + 73) { @apply border-b-0; }
-
-  .cell:hover { @apply bg-base-200; }
-
-  /* Origem do número: só peso da fonte e cor. */
-  .cell--given    { @apply font-bold; }
-  .cell--guess    { @apply text-info; }
-  .cell--revealed { @apply text-success; }
-
-  /* Destaques. Quando duas regras se aplicam à mesma casa, vale a que vem
-     DEPOIS no arquivo. Por isso a seleção vem depois da origem: numa casa
-     selecionada, a cor do texto da seleção ganha da cor do número. */
-  .cell--related    { @apply bg-base-200; }
-  .cell--same-value { @apply bg-accent/30; }
-  .cell--selected   { @apply bg-primary text-primary-content; }
-
-  /* O conflito vem por último para ganhar das cores acima. */
-  .cell--conflict { @apply text-error; }
-  .cell--selected.cell--conflict { @apply bg-error text-error-content; }
-
-
-  /* ---------- Marcações de canto ----------
-     Uma grade 3x3 pequena, por cima da casa (`absolute inset-0`). O Elm
-     escreve as marcações em ordem crescente, e cada `:nth-child` põe uma
-     delas numa posição da grade: primeiro os cantos, depois os lados.
-
-         1 5 2
-         7 9 8
-         3 6 4
-  */
-
-  .corner-marks {
-    @apply absolute inset-0.5 grid grid-cols-3 grid-rows-3 text-[0.55rem] leading-none sm:text-xs;
+  .casa--rascunho {
+    @apply cursor-pointer border-base-content/40 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
   }
 
-  .corner-mark {
-    @apply flex items-center justify-center opacity-70;
+  .casa--confirmada {
+    @apply border-transparent;
   }
 
-  .corner-mark:nth-child(1) { @apply col-start-1 row-start-1; }
-  .corner-mark:nth-child(2) { @apply col-start-3 row-start-1; }
-  .corner-mark:nth-child(3) { @apply col-start-1 row-start-3; }
-  .corner-mark:nth-child(4) { @apply col-start-3 row-start-3; }
-  .corner-mark:nth-child(5) { @apply col-start-2 row-start-1; }
-  .corner-mark:nth-child(6) { @apply col-start-2 row-start-3; }
-  .corner-mark:nth-child(7) { @apply col-start-1 row-start-2; }
-  .corner-mark:nth-child(8) { @apply col-start-3 row-start-2; }
-  .corner-mark:nth-child(9) { @apply col-start-2 row-start-2; }
+  .casa--verde   { @apply border-success bg-success text-success-content; }
+  .casa--amarela { @apply border-warning bg-warning text-warning-content; }
+  .casa--cinza   { @apply border-neutral bg-neutral text-neutral-content; }
 
-  .corner-mark--highlight {
-    @apply font-bold text-accent opacity-100;
+
+  /* ---------- Painel do modo assistente ---------- */
+
+  .acao-nova-partida {
+    @apply btn btn-outline btn-sm w-full;
+  }
+
+  .painel-secao {
+    @apply flex flex-col gap-2;
+  }
+
+  .painel-dica {
+    @apply text-xs opacity-65;
+  }
+
+  .sugestao-card {
+    @apply flex flex-col gap-2 rounded-box bg-base-200 p-3;
+  }
+
+  .sugestao-topo {
+    @apply flex items-center gap-2;
+  }
+
+  .sugestao-palavra {
+    @apply btn btn-primary btn-sm font-mono text-base tracking-widest uppercase;
+  }
+
+  .sugestao-motivo {
+    @apply text-sm opacity-80;
+  }
+
+  .candidatas-lista {
+    @apply flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-box bg-base-200 p-2.5;
+  }
+
+  .candidata {
+    @apply btn btn-ghost btn-xs border border-base-300 bg-base-100 font-mono tracking-wider uppercase;
+  }
+
+  .candidatas-extras {
+    @apply text-xs opacity-65;
   }
 
 
-  /* ---------- Teclado numérico e ações ---------- */
+  /* ---------- Painel do modo automático ---------- */
 
-  .number-pad {
-    @apply grid grid-cols-3 gap-2;
+  .autoplay-form {
+    @apply flex flex-col gap-2 sm:flex-row;
   }
 
-  .number-key {
-    @apply btn btn-lg;
+  .autoplay-input {
+    @apply input flex-1 font-mono text-base tracking-widest uppercase;
   }
 
-  .erase-key {
-    @apply btn btn-lg btn-ghost;
+  .autoplay-botao {
+    @apply btn btn-primary;
   }
-
-  .mode-toggle {
-    @apply btn btn-lg col-span-2;
-  }
-
-  .mode-toggle--on {
-    @apply btn-warning;
-  }
-
-  .actions {
-    @apply grid grid-cols-3 gap-2;
-  }
-
-  .action-button        { @apply btn; }
-  .action-button--hint  { @apply btn-secondary; }
-  .action-button--solve { @apply btn-accent; }
-  .action-button--reset { @apply btn-ghost; }
 
 
   /* ---------- Teclado ---------- */
