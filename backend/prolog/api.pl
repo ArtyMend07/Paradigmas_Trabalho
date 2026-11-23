@@ -168,12 +168,13 @@ efeito_string(nenhum, "") :- !.
 efeito_string(Efeito, Texto) :-
     atom_string(Efeito, Texto).
 
-evento_json(nenhum, _{efeito: "", letra: ""}).
-evento_json(anuncio(_), _{efeito: "", letra: ""}).
-evento_json(instantaneo(Efeito), _{efeito: Texto, letra: ""}) :-
+evento_json(nenhum, _{efeito: "", letra: "", presente: false}).
+evento_json(anuncio(_), _{efeito: "", letra: "", presente: false}).
+evento_json(instantaneo(Efeito), _{efeito: Texto, letra: "", presente: false}) :-
     atom_string(Efeito, Texto).
-evento_json(dica(Letra), _{efeito: "dica_de_letra", letra: Texto}) :-
-    atom_string(Letra, Texto).
+evento_json(dica(Letra, Presenca), _{efeito: "dica_de_letra", letra: Texto, presente: Presente}) :-
+    atom_string(Letra, Texto),
+    ( Presenca == presente -> Presente = true ; Presente = false ).
 
 situacao(Estado, "venceu") :-
     acertou(Estado),

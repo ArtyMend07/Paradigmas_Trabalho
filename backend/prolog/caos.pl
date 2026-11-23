@@ -181,9 +181,11 @@ aplicar_efeito(troca_de_palavra, Estado,
     Estado = estado(_, Linhas, _, Max),
     outra_resposta_sorteada(Estado, Nova).
 aplicar_efeito(dica_de_letra, estado(R, Linhas, _, Max),
-               estado(R, Linhas, nenhum, Max), dica(Letra)) :-
+               estado(R, Linhas, nenhum, Max), dica(Letra, Presenca)) :-
     !,
-    dica_de_letra(estado(R, Linhas, _, Max), Letra).
+    dica_de_letra(estado(R, Linhas, _, Max), Letra),
+    atom_chars(R, Letras),
+    ( memberchk(Letra, Letras) -> Presenca = presente ; Presenca = ausente ).
 aplicar_efeito(voltar_no_tempo, estado(R, Linhas, _, Max),
                estado(R, Anteriores, nenhum, Max), instantaneo(voltar_no_tempo)) :-
     !,

@@ -109,6 +109,7 @@ class LinhaCaos(BaseModel):
 class EventoCaos(BaseModel):
     efeito: str
     letra: str
+    presente: bool
 
 
 class PartidaCaos(BaseModel):

@@ -149,4 +149,11 @@ test(dica_e_letra_ainda_nao_jogada) :-
     dica_de_letra(Estado, Letra),
     assertion(\+ memberchk(Letra, [t, e, r, m, o])).
 
+test(dica_diz_se_a_letra_esta_na_resposta) :-
+    estado_com(carro, [termo], 6, Estado),
+    caos:aplicar_efeito(dica_de_letra, Estado, _, dica(Letra, Presenca)),
+    atom_chars(carro, Letras),
+    ( memberchk(Letra, Letras) -> Esperada = presente ; Esperada = ausente ),
+    assertion(Presenca == Esperada).
+
 :- end_tests(caos_solucao).
