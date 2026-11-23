@@ -2,6 +2,8 @@
 
 :- dynamic word/1.
 
+% load_words(+Arquivo)
+% apaga os word/1 anteriores antes de ler, entao recarregar nao duplica.
 load_words(Arquivo) :-
     retractall(word(_)),
     read_file_to_string(Arquivo, Texto, [encoding(utf8)]),
