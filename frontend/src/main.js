@@ -1,10 +1,4 @@
 // Ponto de entrada JavaScript. O Vite começa por aqui (veja index.html).
-// Escolha UM dos dois estilos (as classes são as mesmas nos dois):
-//   style.css          visual completo: temas próprios, fontes, gradientes,
-//                      animações e várias técnicas de CSS moderno
-//   style-simples.css  visual minimalista, quase só com @apply do Tailwind;
-//                      um ponto de partida mais fácil de entender e modificar
-// import "./style.css";
 import "./style-simples.css";
 
 // O vite-plugin-elm permite importar um módulo Elm como se fosse JS: ele
