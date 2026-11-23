@@ -91,3 +91,58 @@ def autoplay(request: AutoplayRequest) -> AutoplayResponse:
     except prolog.PalavraNaoEncontrada:
         raise HTTPException(status_code=422, detail=NAO_ENCONTRADA) from None
     return AutoplayResponse(passos=passos)
+
+
+# Modo caos (#14). A partida fica guardada no Prolog; o Elm só manda o id e o
+# palpite e recebe o tabuleiro já com os efeitos aplicados.
+
+
+class LinhaCaos(BaseModel):
+    palavra: str
+    efeito: str
+    tipo: Literal["cores", "contagem", "oculta"]
+    cores: list[Cor]
+    verdes: int
+    amarelas: int
+
+
+class EventoCaos(BaseModel):
+    efeito: str
+    letra: str
+
+
+class PartidaCaos(BaseModel):
+    id: int
+    linhas: list[LinhaCaos]
+    max_linhas: int
+    proximo: str
+    evento: EventoCaos
+    situacao: Literal["em_andamento", "venceu", "perdeu"]
+    resposta: str
+
+
+class PalpiteCaosRequest(BaseModel):
+    id: int
+    palavra: Palavra
+
+
+PARTIDA_NAO_ENCONTRADA = "Partida não encontrada."
+PARTIDA_ENCERRADA = "A partida já terminou."
+
+
+@app.post("/api/caos/nova")
+def caos_nova() -> PartidaCaos:
+    return PartidaCaos(**prolog.caos_nova())
+
+
+@app.post("/api/caos/palpite")
+def caos_palpite(request: PalpiteCaosRequest) -> PartidaCaos:
+    try:
+        partida = prolog.caos_palpite(request.id, request.palavra)
+    except prolog.PartidaNaoEncontrada:
+        raise HTTPException(status_code=404, detail=PARTIDA_NAO_ENCONTRADA) from None
+    except prolog.PartidaEncerrada:
+        raise HTTPException(status_code=422, detail=PARTIDA_ENCERRADA) from None
+    except prolog.PalpiteInvalido:
+        raise HTTPException(status_code=422, detail=NAO_ENCONTRADA) from None
+    return PartidaCaos(**partida)
