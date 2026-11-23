@@ -54,4 +54,9 @@ test(recarregar_nao_duplica) :-
     aggregate_all(count, word(_), Depois),
     assertion(Antes == Depois).
 
+test(exclui_nomes_proprios, forall(member(Nome, [maria, paulo, pedro, lucas, japao, souza, bahia, egito]))) :-
+    arquivo_palavras(Arquivo),
+    load_words(Arquivo),
+    \+ word(Nome).
+
 :- end_tests(words).

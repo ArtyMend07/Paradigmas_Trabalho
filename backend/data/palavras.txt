@@ -45,7 +45,6 @@ abnue
 aboco
 abohm
 aboma
-abreu
 abril
 abrir
 absis
@@ -389,7 +388,6 @@ aluno
 alvao
 alvar
 alveo
-alves
 alvor
 amaca
 amaci
@@ -401,7 +399,6 @@ amala
 amale
 amame
 amamu
-amapa
 amaro
 ambao
 ambar
@@ -713,7 +710,6 @@ assar
 assas
 assaz
 assim
-assis
 assoa
 assua
 aster
@@ -898,7 +894,6 @@ bagos
 bagre
 bagua
 bague
-bahia
 baiao
 baiar
 baiau
@@ -932,7 +927,6 @@ balta
 balto
 bamba
 bambe
-bambi
 bambo
 bambu
 bamia
@@ -1066,7 +1060,6 @@ bendo
 benge
 benha
 benia
-benim
 benta
 bento
 beola
@@ -1274,7 +1267,6 @@ boora
 boral
 boras
 borax
-borba
 borda
 bordo
 borga
@@ -1372,7 +1364,6 @@ bucue
 bucui
 budin
 buena
-bueno
 buete
 bufao
 bufar
@@ -1495,7 +1486,6 @@ caide
 caipa
 caire
 cairi
-cairo
 caite
 caito
 caiua
@@ -1654,7 +1644,6 @@ caxes
 caxim
 caxua
 cazol
-ceara
 ceata
 cebar
 cebas
@@ -1761,7 +1750,6 @@ chico
 chicu
 chifu
 chila
-chile
 chili
 chilo
 chima
@@ -1889,7 +1877,6 @@ cluva
 coado
 coale
 coano
-coari
 coata
 cobio
 coboi
@@ -2009,7 +1996,6 @@ corti
 corvo
 cosco
 coser
-cosme
 cosmo
 cospe
 cossi
@@ -2324,7 +2310,6 @@ dinie
 dinio
 diodo
 dioga
-diogo
 dioma
 diona
 diopa
@@ -2338,7 +2323,6 @@ diplo
 dipso
 dique
 dirca
-dirce
 direi
 direm
 dirra
@@ -2518,7 +2502,6 @@ edema
 edens
 edere
 edico
-edipo
 edito
 edoma
 edono
@@ -2540,7 +2523,6 @@ egeao
 egesa
 egide
 egipa
-egito
 egrio
 eguar
 eguci
@@ -2569,7 +2551,6 @@ eleis
 elemi
 elepe
 eleto
-elias
 elico
 elime
 elimo
@@ -2671,7 +2652,6 @@ ergio
 ergol
 erica
 erice
-erico
 erina
 erino
 erion
@@ -3171,7 +3151,6 @@ futum
 fuzil
 fuzis
 fuzue
-gabao
 gabar
 gabeu
 gabio
@@ -3179,7 +3158,6 @@ gabro
 gacho
 gadao
 gadar
-gaeta
 gafar
 gafem
 gafio
@@ -3308,7 +3286,6 @@ geral
 gerar
 gerbo
 gerem
-geres
 gerir
 germe
 germo
@@ -3379,7 +3356,6 @@ goete
 gofer
 gogos
 goiar
-goias
 goita
 goiti
 goiva
@@ -3396,7 +3372,6 @@ gomar
 gomas
 gombe
 gombo
-gomes
 gomia
 gomil
 gomor
@@ -3711,7 +3686,6 @@ ianam
 iande
 iandu
 ianga
-iansa
 ianvo
 iaque
 iasis
@@ -3894,10 +3868,8 @@ ipuca
 iracu
 irade
 irado
-iraja
 irani
 irari
-irene
 ireno
 irere
 irial
@@ -3932,7 +3904,6 @@ istmo
 istro
 isuro
 isuso
-itaca
 itaco
 italo
 itame
@@ -4007,7 +3978,6 @@ jango
 janja
 janta
 janua
-japao
 japim
 japiu
 japix
@@ -4050,7 +4020,6 @@ jeque
 jequi
 jerra
 jesse
-jesus
 jetai
 jetom
 jicao
@@ -4073,7 +4042,6 @@ jirau
 jiroe
 jitai
 jitsu
-joana
 joane
 jobar
 jocal
@@ -4099,7 +4067,6 @@ joncu
 jongo
 jonio
 jooes
-jorge
 jorim
 jorne
 jorro
@@ -4126,7 +4093,6 @@ jugal
 jugar
 jugos
 jugum
-juina
 juiza
 juizo
 julho
@@ -4278,7 +4244,6 @@ legar
 legba
 legis
 legua
-leila
 leino
 leite
 leito
@@ -4370,7 +4335,6 @@ licra
 licto
 lidar
 lider
-lidia
 lidio
 liege
 ligal
@@ -4481,7 +4445,6 @@ longa
 longe
 longo
 lonja
-lopes
 lopso
 loqui
 loral
@@ -4515,9 +4478,7 @@ luale
 luane
 luano
 lucao
-lucas
 lucha
-lucia
 lucio
 lucmo
 lucro
@@ -4538,7 +4499,6 @@ luico
 luila
 luime
 luina
-luisa
 lulao
 lulas
 lulus
@@ -4639,7 +4599,6 @@ maina
 maino
 maior
 maios
-maira
 maire
 mairu
 maita
@@ -4722,10 +4681,8 @@ mares
 mareu
 marfi
 marga
-maria
 marii
 marim
-mario
 marja
 marmo
 marno
@@ -4911,7 +4868,6 @@ mijar
 mijas
 mijos
 mijui
-milao
 milde
 mileo
 mileu
@@ -4933,7 +4889,6 @@ mineu
 mingo
 mingu
 minha
-minho
 minio
 minje
 minke
@@ -5211,7 +5166,6 @@ mungu
 munho
 munia
 munir
-muniz
 munje
 munsi
 munto
@@ -5380,7 +5334,6 @@ negus
 neido
 neldo
 nelia
-nelma
 nembo
 nemeu
 nenax
@@ -5392,7 +5345,6 @@ nenho
 nenio
 nente
 neone
-nepal
 neper
 nepia
 nepos
@@ -5468,7 +5420,6 @@ nisao
 nisco
 nisei
 niseu
-nisia
 nisio
 nispo
 nisso
@@ -5566,7 +5517,6 @@ numes
 nunca
 nunce
 nundo
-nunes
 nungo
 nuper
 nuria
@@ -5614,7 +5564,6 @@ ocume
 odara
 odeao
 odede
-odeon
 odiar
 odico
 odila
@@ -5888,7 +5837,6 @@ pajeu
 palao
 palar
 palas
-palau
 palco
 palea
 paleo
@@ -5948,7 +5896,6 @@ pargo
 paria
 pario
 parir
-paris
 parma
 parne
 parno
@@ -5989,7 +5936,6 @@ paual
 pauda
 pauis
 paula
-paulo
 pauls
 pauna
 paura
@@ -6017,7 +5963,6 @@ pecte
 pedal
 pedir
 pedra
-pedro
 pegao
 pegar
 pegas
@@ -6134,7 +6079,6 @@ piafe
 piaga
 piano
 piape
-piaui
 piaus
 piava
 pical
@@ -6159,7 +6103,6 @@ pidao
 piego
 pielo
 piere
-piero
 piese
 pieze
 piezo
@@ -7090,7 +7033,6 @@ sapro
 sapua
 saque
 saqui
-sarah
 saran
 sarao
 sarar
@@ -7258,7 +7200,6 @@ silis
 silte
 silva
 silvo
-simao
 simbi
 simbo
 simel
@@ -7330,7 +7271,6 @@ sodar
 sodio
 sodra
 sofas
-sofia
 sofre
 sogar
 sogro
@@ -7383,8 +7323,6 @@ sotar
 soter
 sotia
 sotos
-sousa
-souza
 sovar
 soveu
 sovro
@@ -7417,7 +7355,6 @@ sucio
 sucos
 sucre
 sucto
-sudao
 sudar
 sudro
 sueco
@@ -7708,11 +7645,9 @@ tetum
 teuba
 teudo
 teuto
-texas
 texto
 tiace
 tiade
-tiago
 tiano
 tiapi
 tiara
@@ -7760,7 +7695,6 @@ timbu
 timia
 timio
 timol
-timor
 tinao
 tinca
 tinea
@@ -7842,7 +7776,6 @@ tolva
 tomai
 tomao
 tomar
-tomas
 tomba
 tomes
 tomia
@@ -8333,7 +8266,6 @@ vetos
 vexar
 vezar
 viado
-viana
 viara
 vibal
 vicar
@@ -8341,7 +8273,6 @@ vichi
 vicio
 vicoa
 victo
-vidal
 vidar
 vidas
 video
@@ -8351,7 +8282,6 @@ vidma
 vidro
 vidua
 vielo
-viena
 vieza
 vigar
 viger
@@ -8396,7 +8326,6 @@ virus
 visao
 visar
 visco
-viseu
 visgo
 visma
 visom
@@ -8408,7 +8337,6 @@ vitae
 vital
 vitex
 vitis
-vitor
 vitre
 vitro
 viuva
