@@ -45,11 +45,33 @@ best_guess([], Palavra, Motivo) :-
     abertura(Palavra),
     Motivo = "palpite de abertura, calculado previamente pelo critério minimax".
 best_guess(Historico, Palavra, Motivo) :-
-    candidates(Historico, Candidatas),
+    candidatas(Historico, Candidatas),
     Candidatas \== [],
     length(Candidatas, N),
     escolhe(N, Candidatas, Palavra, Maior),
     motivo(N, Maior, Motivo).
+
+%!  candidatas(+Historico, -Candidatas) is det.
+%
+%   candidates/2 restrito às respostas possíveis (resposta/1, de
+%   autoplay.pl), pois a resposta sorteada sempre está entre elas. Isso
+%   evita gastar tentativas separando palavras raras que nunca serão a
+%   resposta: com a restrição, todas as 2.000 respostas são acertadas em
+%   até 5 tentativas (sem ela, 4 precisavam de 7). Os palpites continuam
+%   vindo da base inteira. Se respostas.txt não estiver carregado ou se
+%   nenhuma resposta for compatível (palavra do jogador fora da lista),
+%   usa todas as candidatas de candidates/2.
+candidatas(Historico, Candidatas) :-
+    candidates(Historico, Todas),
+    (   current_predicate(autoplay:resposta/1),
+        include(eh_resposta, Todas, Respostas),
+        Respostas \== []
+    ->  Candidatas = Respostas
+    ;   Candidatas = Todas
+    ).
+
+eh_resposta(Palavra) :-
+    autoplay:resposta(Palavra).
 
 escolhe(N, [Palavra|_], Palavra, 1) :-
     N =< 2,
