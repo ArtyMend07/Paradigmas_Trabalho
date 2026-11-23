@@ -24,7 +24,7 @@ teclaFisica chave =
         _ ->
             case String.toList (String.toLower chave) of
                 [ letra ] ->
-                    if Char.isAlpha letra then
+                    if Termo.ehLetra letra then
                         Just (Letra letra)
 
                     else

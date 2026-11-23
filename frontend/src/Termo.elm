@@ -10,6 +10,7 @@ module Termo exposing
     , corDoTeclado
     , deHistorico
     , digitar
+    , ehLetra
     , grade
     , historico
     , maxPalpites
@@ -26,6 +27,10 @@ type Cor
     | Amarelo
     | Cinza
 
+ehLetra : Char -> Bool
+ehLetra c =
+    c >= 'a' && c <= 'z'
+
 
 type alias Palpite =
     { palavra : String
@@ -33,6 +38,10 @@ type alias Palpite =
     }
 
 
+{-| Estado de uma partida. É opaco (o construtor não é exportado), então
+quem usa o módulo não consegue montar um jogo inválido: só dá pra mexer
+nele pelas funções deste módulo (`digitar`, `apagar`, `confirmar`...).
+-}
 type Jogo
     = Jogo
         { palpites : List Palpite
@@ -80,7 +89,7 @@ historico (Jogo jogo) =
 
 acertou : Jogo -> Bool
 acertou (Jogo jogo) =
-    List.any (\palpite -> List.all ((==) Verde) palpite.cores) jogo.palpites
+    List.any (\palpite -> palpite.cores == List.repeat tamanhoPalavra Verde) jogo.palpites
 
 
 terminou : Jogo -> Bool
@@ -97,7 +106,7 @@ digitar letra ((Jogo jogo) as todo) =
         cabe =
             List.length jogo.rascunho < tamanhoPalavra
     in
-    if Char.isAlpha minuscula && cabe && not (terminou todo) then
+    if ehLetra minuscula && cabe && not (terminou todo) then
         Jogo { jogo | rascunho = jogo.rascunho ++ [ ( minuscula, Cinza ) ] }
 
     else
@@ -141,7 +150,7 @@ confirmar ((Jogo jogo) as todo) =
         Err "A partida já terminou."
 
     else if List.length jogo.rascunho < tamanhoPalavra then
-        Err "A palavra precisa ter 5 letras."
+        Err ("A palavra precisa ter " ++ String.fromInt tamanhoPalavra ++ " letras.")
 
     else
         Ok
@@ -190,6 +199,14 @@ completar casas =
     casas ++ List.repeat (tamanhoPalavra - List.length casas) Vazia
 
 
+{-| Cor que a tecla da letra deve mostrar, considerando todos os palpites.
+
+Uma letra pode receber cores diferentes ao longo da partida, inclusive no
+mesmo palpite. A melhor cor é mostrada (verde > amarelo > cinza) porque, se a letra já
+apareceu verde ou amarela, ela com certeza está na palavra, e a letra no local certo (verde)
+tem prioridade maior que letra certa na posição errada (amarela) ou cinza
+
+-}
 corDoTeclado : Jogo -> Char -> Maybe Cor
 corDoTeclado (Jogo jogo) letra =
     jogo.palpites
