@@ -20,7 +20,7 @@ test(historico_vazio_retorna_base_inteira) :-
     assertion(Ws == Base).
 
 test(sem_palavra_compativel, Ws == []) :-
-    %basicamente colocamos aqui que cada palavra pode dar tudo verde para barra e para carro ao mesmo tempo
+    %nenhuma palavra pode ser barra e carro ao mesmo tempo
     candidates([[barra, [green, green, green, green, green]],
                 [carro, [green, green, green, green, green]]], Ws).
 
@@ -31,16 +31,17 @@ test(um_palpite_exemplo_barra, Ws == [carre, carri, carro, jarro, larro,
 test(um_palpite_letra_repetida_no_palpite,
      Ws == [barre, barro, carre, carri, carro, jarro, larro,
             sarro, tarro, varre, zarro]) :-
-    % arara tem tres "a" e dois "r"; carro tem um "a": so o primeiro "a" e fora de lugar fica amarelo, os outros ficam cinza
+    % arara tem tres "a" e carro so um, entao so o primeiro "a" fora do
+    % lugar fica amarelo e os outros ficam cinza
     candidates([[arara, [yellow, yellow, gray, green, gray]]], Ws).
 
 test(dois_palpites_letras_repetidas, Ws == [pasta]) :-
-    % papai e sessa repetem letras; o "s" repetido de sessa so pinta um verde.
+    % papai e sessa repetem letra. o "s" repetido de sessa so pinta um verde
     candidates([[papai, [green, green, gray, yellow, gray]],
                 [sessa, [gray, gray, green, gray, green]]], Ws).
 
 test(dois_palpites_amarelo_exclui_candidata) :-
-    % barre daria yellow no "e" de terra, entao nao e candidata.
+    % barre daria yellow no "e" de terra, entao sai da lista
     candidates([[arara, [yellow, yellow, gray, green, gray]],
                 [terra, [gray, gray, green, green, yellow]]], Ws),
     assertion(Ws == [barro, carri, carro, jarro, larro, sarro, zarro]),

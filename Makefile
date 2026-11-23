@@ -25,6 +25,7 @@ test-prolog:
 	swipl -g run_tests -t halt backend/prolog/test_feedback.pl
 	swipl -g run_tests -t halt backend/prolog/test_candidates.pl
 	swipl -g run_tests -t halt backend/prolog/test_strategy.pl
+	swipl -g run_tests -t halt backend/prolog/test_autoplay.pl
 
 test-backend:
 	cd backend && uv run pytest
