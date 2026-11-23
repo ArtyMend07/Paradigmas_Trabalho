@@ -55,7 +55,7 @@ test(uma_candidata_retorna_ela) :-
 test(exemplo_barra) :-
     H = [[barra, [gray, green, green, green, gray]]],
     rapido(best_guess(H, W, Motivo)),
-    candidates(H, Cs),
+    strategy:candidatas(H, Cs),
     length(Cs, N),
     assertion(word(W)),
     format(string(Inicio), "restam ~d palavras; ", [N]),
@@ -65,12 +65,29 @@ test(minimax_separa_todas_as_candidatas) :-
     % O "máximo" informado no motivo é de fato o maior grupo do palpite.
     H = [[barra, [gray, green, green, green, gray]]],
     best_guess(H, W, Motivo),
-    candidates(H, Cs),
+    strategy:candidatas(H, Cs),
     findall(C, ( member(X, Cs), feedback(W, X, C) ), Grupos),
     msort(Grupos, Ordenados),
     clumped_pairs(Ordenados, Maior),
     format(string(Esperado), "sobram no máximo ~d", [Maior]),
     assertion(sub_string(Motivo, _, _, 0, Esperado)).
+
+test(candidatas_restritas_as_respostas) :-
+    H = [[barra, [gray, green, green, green, gray]]],
+    strategy:candidatas(H, Cs),
+    candidates(H, Todas),
+    assertion(Cs \== []),
+    assertion(forall(member(X, Cs), resposta(X))),
+    assertion(subset(Cs, Todas)),
+    length(Cs, N),
+    length(Todas, NT),
+    assertion(N < NT).
+
+test(volta_para_base_quando_nenhuma_resposta_serve) :-
+    % ababe está em palavras.txt, mas não em respostas.txt.
+    assertion(\+ resposta(ababe)),
+    best_guess([[ababe, [green, green, green, green, green]]], W, _),
+    assertion(W == ababe).
 
 test(aceita_strings_vindas_do_python) :-
     best_guess([["barra", ["gray", "green", "green", "green", "gray"]]], W, _),
@@ -89,7 +106,10 @@ test(rapido_apos_abertura) :-
              rapido(best_guess([[A, Cores]], _, _)) )).
 
 test(acerta_em_ate_6_tentativas) :-
-    forall(member(R, [carro, termo, pasta, sorte, mundo, papai, jarro]),
+    % tanta, pinar, vacas e vagar precisavam de 7 antes de restringir as
+    % candidatas a respostas.txt.
+    forall(member(R, [carro, termo, pasta, sorte, mundo, papai, jarro,
+                      tanta, pinar, vacas, vagar]),
            ( autoplay(R, Passos),
              last(Passos, [Ultimo, Cores]),
              assertion(Ultimo == R),
