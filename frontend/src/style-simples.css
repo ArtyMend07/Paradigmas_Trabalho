@@ -111,12 +111,12 @@
     @apply btn-primary;
   }
 
-  .message          { @apply alert w-full text-sm; }
+  .message          { @apply alert flex w-full items-center text-sm; }
   .message--error   { @apply alert-error; }
   .message--success { @apply alert-success; }
   .message--info    { @apply alert-info; }
   .message--loading { @apply alert-soft; }
-  .message-close    { @apply btn btn-ghost btn-xs; }
+  .message-close    { @apply btn btn-circle btn-ghost btn-xs ms-auto text-base leading-none; }
   .spinner          { @apply loading loading-spinner loading-sm; }
 
 

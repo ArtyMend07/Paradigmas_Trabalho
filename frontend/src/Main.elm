@@ -90,7 +90,7 @@ init flags =
       , erroLocal = Nothing
       , temaEscuro = flags.darkTheme
       }
-    , cmdSugerir [] RecebeuSugestao
+    , cmdSugerir [] (RecebeuSugestao 0)
     )
 
 
@@ -104,11 +104,11 @@ type Msg
     | CorTrocada Int
     | PalavraEscolhida String
     | NovoJogo
-    | RecebeuCandidatas (Result String (List String))
-    | RecebeuSugestao (Result String Sugestao)
+    | RecebeuCandidatas Int (Result String (List String))
+    | RecebeuSugestao Int (Result String Sugestao)
     | PalavraAutoplayAlterada String
     | AutoplaySolicitado
-    | RecebeuAutoplay (Result String (List Palpite))
+    | RecebeuAutoplay String (Result String (List Palpite))
     | TemaAlterado Bool
     | ErroFechado
 
@@ -159,25 +159,33 @@ update msg model =
                 , sugestao = Carregando
                 , erroLocal = Nothing
               }
-            , cmdSugerir [] RecebeuSugestao
+            , cmdSugerir [] (RecebeuSugestao 0)
             )
 
-        RecebeuCandidatas resultado ->
-            ( { model | candidatas = deResult resultado }
-            , Cmd.none
-            )
+        RecebeuCandidatas passo resultado ->
+            if passo /= List.length (Termo.historico model.jogo) then
+                ( model, Cmd.none )
 
-        RecebeuSugestao resultado ->
-            ( { model | sugestao = deResult resultado }
-            , Cmd.none
-            )
+            else
+                ( { model | candidatas = deResult resultado }
+                , Cmd.none
+                )
+
+        RecebeuSugestao passo resultado ->
+            if passo /= List.length (Termo.historico model.jogo) then
+                ( model, Cmd.none )
+
+            else
+                ( { model | sugestao = deResult resultado }
+                , Cmd.none
+                )
 
         PalavraAutoplayAlterada texto ->
             let
                 limpa =
                     texto
                         |> String.toLower
-                        |> String.filter Char.isAlpha
+                        |> String.filter ehLetraAscii
                         |> String.left Termo.tamanhoPalavra
             in
             ( { model | palavraAutoplay = limpa, erroLocal = Nothing }
@@ -192,13 +200,17 @@ update msg model =
 
             else
                 ( { model | autoplay = Carregando, erroLocal = Nothing }
-                , cmdJogarSozinho model.palavraAutoplay RecebeuAutoplay
+                , cmdJogarSozinho model.palavraAutoplay (RecebeuAutoplay model.palavraAutoplay)
                 )
 
-        RecebeuAutoplay resultado ->
-            ( { model | autoplay = deResult resultado }
-            , Cmd.none
-            )
+        RecebeuAutoplay palavra resultado ->
+            if palavra /= model.palavraAutoplay then
+                ( model, Cmd.none )
+
+            else
+                ( { model | autoplay = deResult resultado }
+                , Cmd.none
+                )
 
         TemaAlterado escuro ->
             ( { model | temaEscuro = escuro }
@@ -206,7 +218,12 @@ update msg model =
             )
 
         ErroFechado ->
-            ( { model | erroLocal = Nothing }
+            ( { model
+                | erroLocal = Nothing
+                , candidatas = limparFalha model.candidatas
+                , sugestao = limparFalha model.sugestao
+                , autoplay = limparFalha model.autoplay
+              }
             , Cmd.none
             )
 
@@ -252,6 +269,9 @@ tratarTecla tecla model =
                         let
                             hist =
                                 Termo.historico novoJogo
+
+                            passo =
+                                List.length hist
                         in
                         ( { model
                             | jogo = novoJogo
@@ -260,10 +280,15 @@ tratarTecla tecla model =
                             , erroLocal = Nothing
                           }
                         , Cmd.batch
-                            [ cmdBuscarCandidatas hist RecebeuCandidatas
-                            , cmdSugerir hist RecebeuSugestao
+                            [ cmdBuscarCandidatas hist (RecebeuCandidatas passo)
+                            , cmdSugerir hist (RecebeuSugestao passo)
                             ]
                         )
+
+
+ehLetraAscii : Char -> Bool
+ehLetraAscii c =
+    c >= 'a' && c <= 'z'
 
 
 deResult : Result String a -> Remoto a
@@ -274,6 +299,16 @@ deResult resultado =
 
         Err erro ->
             Falhou erro
+
+
+limparFalha : Remoto a -> Remoto a
+limparFalha remoto =
+    case remoto of
+        Falhou _ ->
+            NaoPedido
+
+        _ ->
+            remoto
 
 
 {-| Substitui as letras do rascunho atual pela palavra escolhida, usando apenas
@@ -314,6 +349,7 @@ teclaDecoder =
             { chave = chave
             , modificador = ctrl || alt || meta
             , emCampoTexto = tag == "INPUT" || tag == "TEXTAREA"
+            , emBotao = tag == "BUTTON"
             }
         )
         (Decode.field "key" Decode.string)
@@ -324,9 +360,9 @@ teclaDecoder =
         |> Decode.andThen interpretarEvento
 
 
-interpretarEvento : { chave : String, modificador : Bool, emCampoTexto : Bool } -> Decoder Msg
+interpretarEvento : { chave : String, modificador : Bool, emCampoTexto : Bool, emBotao : Bool } -> Decoder Msg
 interpretarEvento evento =
-    if evento.modificador || evento.emCampoTexto then
+    if evento.modificador || evento.emCampoTexto || (evento.emBotao && evento.chave == "Enter") then
         Decode.fail "evento ignorado"
 
     else
@@ -543,12 +579,12 @@ viewMensagens : Model -> Html Msg
 viewMensagens model =
     case model.erroLocal of
         Just erro ->
-            viewAlertaErro erro True
+            viewAlertaErro erro
 
         Nothing ->
             case erroRemotoDoModo model of
                 Just erro ->
-                    viewAlertaErro erro False
+                    viewAlertaErro erro
 
                 Nothing ->
                     if estaCarregando model then
@@ -561,21 +597,17 @@ viewMensagens model =
                         viewEstadoDaPartida model
 
 
-viewAlertaErro : String -> Bool -> Html Msg
-viewAlertaErro erro fechavel =
+viewAlertaErro : String -> Html Msg
+viewAlertaErro erro =
     div [ class "message message--error", attribute "role" "alert" ]
         [ span [] [ text erro ]
-        , if fechavel then
-            button
-                [ type_ "button"
-                , class "message-close"
-                , attribute "aria-label" "Fechar aviso"
-                , onClick ErroFechado
-                ]
-                [ text "×" ]
-
-          else
-            text ""
+        , button
+            [ type_ "button"
+            , class "message-close"
+            , attribute "aria-label" "Fechar aviso"
+            , onClick ErroFechado
+            ]
+            [ text "×" ]
         ]
 
 
@@ -639,21 +671,37 @@ viewEstadoDaPartida model =
                     let
                         n =
                             List.length passos
+
+                        sufixoGrade =
+                            if n > Termo.maxPalpites then
+                                " (a grade exibe as " ++ String.fromInt Termo.maxPalpites ++ " primeiras)"
+
+                            else
+                                ""
                     in
                     if n == 0 then
                         div [ class "message message--info", attribute "role" "status" ]
                             [ text "Nenhum passo retornado." ]
 
-                    else if Termo.acertou (Termo.deHistorico passos) then
+                    else if acertouNosPassos passos then
                         div [ class "message message--success", attribute "role" "status" ]
-                            [ text ("Solver acertou em " ++ formatarTentativas n ++ "!") ]
+                            [ text ("Solver acertou em " ++ formatarTentativas n ++ sufixoGrade ++ "!") ]
 
                     else
                         div [ class "message message--info", attribute "role" "status" ]
-                            [ text ("Solver terminou após " ++ formatarTentativas n ++ ".") ]
+                            [ text ("Solver terminou após " ++ formatarTentativas n ++ sufixoGrade ++ ".") ]
 
                 _ ->
                     text ""
+
+
+acertouNosPassos : List Palpite -> Bool
+acertouNosPassos passos =
+    List.any
+        (\palpite ->
+            List.length palpite.cores == Termo.tamanhoPalavra && List.all ((==) Verde) palpite.cores
+        )
+        passos
 
 
 formatarTentativas : Int -> String
