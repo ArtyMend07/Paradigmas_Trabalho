@@ -31,6 +31,10 @@ test(palavras_comuns_estao_nas_respostas) :-
     assertion(resposta(termo)),
     assertion(resposta(mundo)).
 
+test(nomes_proprios_nao_sao_resposta) :-
+    forall(member(Nome, [maria, paulo, pedro, souza, lucas, japao, egito]),
+           assertion(\+ resposta(Nome))).
+
 test(recarregar_nao_duplica) :-
     aggregate_all(count, resposta(_), Antes),
     arquivo(respostas, Respostas),
