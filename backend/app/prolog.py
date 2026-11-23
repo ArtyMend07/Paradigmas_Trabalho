@@ -2,13 +2,15 @@
 
 janus (pacote `janus-swi`) embute o SWI-Prolog dentro do processo Python.
 Não há servidor Prolog separado nem troca de mensagens: chamamos predicados
-diretamente e recebemos as respostas como dicionários Python.
+diretamente e recebemos as respostas como valores Python.
 
 Conversão automática de tipos (Python -> Prolog):
-    int          -> inteiro
-    str          -> string  (use janus.Term / átomos com cuidado, veja abaixo)
+    str          -> string
     list         -> lista
-    dict         -> dict do SWI-Prolog
+
+Os predicados do jogo usam átomos; quem converte string <-> átomo é
+`prolog/api.pl`. Este arquivo só chama os três predicados de lá e traduz
+falhas em exceções.
 
 Para mais detalhes: https://www.swi-prolog.org/pldoc/man?section=janus
 
@@ -20,54 +22,49 @@ from pathlib import Path
 
 import janus_swi as janus
 
-Grid = list[list[int]]
+# Um palpite é [palavra, [cor x 5]]: lista, e não tupla nem termo composto,
+# porque o janus não converte termos compostos.
+Palpite = list
+Historico = list[Palpite]
 
-PROLOG_FILE = Path(__file__).parent.parent / "prolog" / "sudoku.pl"
+PROLOG_FILE = Path(__file__).parent.parent / "prolog" / "api.pl"
 
-# consult/1 carrega o arquivo .pl, como `?- [sudoku].` no terminal do swipl.
+# consult/1 carrega api.pl, que carrega os demais módulos e a base de
+# palavras (palavras.txt e respostas.txt) na inicialização.
 janus.consult(str(PROLOG_FILE))
 
 
-class NoSolution(Exception):
-    """O tabuleiro enviado não tem solução."""
+class SemCandidatas(Exception):
+    """Nenhuma palavra da base é compatível com o histórico."""
 
 
-class BoardComplete(Exception):
-    """O tabuleiro não tem casas vazias: não há dica para dar."""
+class PalavraNaoEncontrada(Exception):
+    """A palavra do autoplay não está em respostas.txt."""
 
 
-def solve(puzzle: Grid) -> Grid:
-    # query_once executa a consulta e devolve um dict com as variáveis da
-    # consulta (em maiúsculas, como no Prolog) e a chave 'truth', que diz se
-    # a consulta teve sucesso.
-    result = janus.query_once("sudoku:solve(Puzzle, Solution)", {"Puzzle": puzzle})
+def candidatas(historico: Historico) -> list[str]:
+    # query_once devolve um dict com as variáveis da consulta e a chave
+    # 'truth', que diz se a consulta teve sucesso.
+    result = janus.query_once("api:api_candidatas(H, Ws)", {"H": historico})
     if not result["truth"]:
-        raise NoSolution
-    return result["Solution"]
+        raise SemCandidatas
+    return result["Ws"]
 
 
-def generate(difficulty: str) -> Grid:
-    # Strings do Python viram strings do Prolog, mas generate/2 espera um
-    # ÁTOMO (easy, medium, hard). atom_string/2 faz a conversão do lado Prolog.
-    result = janus.query_once(
-        "atom_string(D, Name), sudoku:generate(D, Puzzle)", {"Name": difficulty}
-    )
-    return result["Puzzle"]
+def sugestao(historico: Historico) -> tuple[str, str]:
+    result = janus.query_once("api:api_sugestao(H, W, M)", {"H": historico})
+    if not result["truth"]:
+        raise SemCandidatas
+    return result["W"], result["M"]
 
 
-def hint(board: Grid) -> tuple[int, int, int]:
-    result = janus.query_once("sudoku:hint(Board, Result)", {"Board": board})["Result"]
-    # hint/2 sempre tem sucesso e devolve, em Result, uma lista [Linha,
-    # Coluna, Valor] ou um dos átomos `complete` e `unsolvable` (átomos
-    # chegam ao Python como strings). Quem decidiu o que aconteceu foi o
-    # Prolog; aqui só traduzimos cada caso. O `match` do Python escolhe o
-    # ramo pela FORMA do valor, parecido com o casamento de padrões do
-    # Prolog e do Elm.
+def autoplay(palavra: str) -> list[Palpite]:
+    result = janus.query_once("api:api_autoplay(P, R)", {"P": palavra})["R"]
+    # api_autoplay/2 sempre tem sucesso: devolve a lista de passos ou o
+    # átomo `nao_encontrada` (átomos chegam ao Python como str).
     match result:
-        case "complete":
-            raise BoardComplete
-        case "unsolvable":
-            raise NoSolution
-        case [row, col, value]:
-            return row, col, value
-    raise ValueError(f"resultado inesperado de hint/2: {result!r}")
+        case "nao_encontrada":
+            raise PalavraNaoEncontrada
+        case list():
+            return result
+    raise ValueError(f"resultado inesperado de api_autoplay/2: {result!r}")
