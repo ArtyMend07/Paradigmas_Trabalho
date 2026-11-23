@@ -264,4 +264,25 @@
   .action-button--hint  { @apply btn-secondary; }
   .action-button--solve { @apply btn-accent; }
   .action-button--reset { @apply btn-ghost; }
+
+
+  /* ---------- Teclado ---------- */
+
+  .teclado {
+    @apply mx-auto flex w-full max-w-md select-none flex-col gap-1.5;
+  }
+
+  .teclado-linha {
+    @apply flex justify-center gap-1;
+  }
+
+  .tecla {
+    @apply btn h-12 min-w-0 flex-1 px-0 font-bold sm:h-14;
+  }
+
+  .tecla--larga   { @apply flex-[1.5] text-xs; }
+
+  .tecla--verde   { @apply btn-success; }
+  .tecla--amarela { @apply btn-warning; }
+  .tecla--cinza   { @apply btn-neutral opacity-60; }
 }
