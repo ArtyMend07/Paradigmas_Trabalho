@@ -57,9 +57,17 @@ type Modo
     | Automatico
 
 
+{-| `pedido` identifica a consulta mais recente ao Prolog no modo assistente.
+Ele aumenta a cada palpite confirmado, a cada "Nova partida" e quando o jogo
+acaba. Cada resposta volta com o número do pedido que a gerou, e o `update`
+descarta as que não são do pedido atual. Sem isso, uma resposta lenta de uma
+partida anterior poderia sobrescrever a da partida atual: o número do palpite
+sozinho não basta, porque ele se repete de uma partida para a outra.
+-}
 type alias Model =
     { modo : Modo
     , jogo : Jogo
+    , pedido : Int
     , candidatas : Remoto (List String)
     , sugestao : Remoto Sugestao
     , palavraAutoplay : String
@@ -73,6 +81,7 @@ init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { modo = Assistente
       , jogo = Termo.novoJogo
+      , pedido = 0
       , candidatas = NaoPedido
       , sugestao = Carregando
       , palavraAutoplay = ""
@@ -143,17 +152,22 @@ update msg model =
                 )
 
         NovoJogo ->
+            let
+                pedido =
+                    model.pedido + 1
+            in
             ( { model
                 | jogo = Termo.novoJogo
+                , pedido = pedido
                 , candidatas = NaoPedido
                 , sugestao = Carregando
                 , erroLocal = Nothing
               }
-            , Api.sugerir [] (RecebeuSugestao 0)
+            , Api.sugerir [] (RecebeuSugestao pedido)
             )
 
-        RecebeuCandidatas passo resultado ->
-            if passo /= List.length (Termo.historico model.jogo) then
+        RecebeuCandidatas pedido resultado ->
+            if pedido /= model.pedido then
                 ( model, Cmd.none )
 
             else
@@ -161,8 +175,8 @@ update msg model =
                 , Cmd.none
                 )
 
-        RecebeuSugestao passo resultado ->
-            if passo /= List.length (Termo.historico model.jogo) then
+        RecebeuSugestao pedido resultado ->
+            if pedido /= model.pedido then
                 ( model, Cmd.none )
 
             else
@@ -246,8 +260,11 @@ tratarTecla tecla model =
 
                 Ok novoJogo ->
                     if Termo.acertou novoJogo then
+                        -- Aumentar o pedido aqui descarta respostas ainda
+                        -- pendentes do palpite anterior.
                         ( { model
                             | jogo = novoJogo
+                            , pedido = model.pedido + 1
                             , candidatas = NaoPedido
                             , sugestao = NaoPedido
                             , erroLocal = Nothing
@@ -260,18 +277,19 @@ tratarTecla tecla model =
                             hist =
                                 Termo.historico novoJogo
 
-                            passo =
-                                List.length hist
+                            pedido =
+                                model.pedido + 1
                         in
                         ( { model
                             | jogo = novoJogo
+                            , pedido = pedido
                             , candidatas = Carregando
                             , sugestao = Carregando
                             , erroLocal = Nothing
                           }
                         , Cmd.batch
-                            [ Api.buscarCandidatas hist (RecebeuCandidatas passo)
-                            , Api.sugerir hist (RecebeuSugestao passo)
+                            [ Api.buscarCandidatas hist (RecebeuCandidatas pedido)
+                            , Api.sugerir hist (RecebeuSugestao pedido)
                             ]
                         )
 
