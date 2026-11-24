@@ -1,40 +1,37 @@
 module Main exposing (main)
 
-{-| Interface gráfica do Sudoku.
+{-| Interface gráfica do solver de Termo na Arquitetura Elm.
 
-Todo programa Elm interativo segue "A Arquitetura Elm" (The Elm Architecture):
+Dois modos de operação:
 
-  - `Model`: o estado completo da aplicação, num único valor imutável.
-  - `Msg`: tudo o que pode acontecer (cliques, teclas, respostas HTTP...).
-  - `update`: recebe uma `Msg` e o `Model`, devolve o novo `Model` (e os
-    efeitos a executar).
-  - `view`: recebe o `Model` e devolve o `Html`. A tela é uma função do estado.
+  - `Assistente`: o jogador digita o palpite feito no Termo, define a cor de
+    cada letra (clicando nas casas ou pressionando as teclas 1 a 5) e confirma
+    com Enter. O painel exibe as candidatas restantes e a sugestão do próximo
+    palpite com o motivo.
+  - `Automatico`: o jogador informa uma palavra de 5 letras e o solver mostra
+    na grade 6×5 todos os passos até acertá-la.
 
-O ciclo é sempre o mesmo: a `view` desenha o `Model`; o usuário interage e
-gera uma `Msg`; o `update` produz um `Model` novo; a `view` desenha de novo.
-Não há variáveis globais nem alterações "escondidas" do estado.
+As chamadas HTTP ficam a cargo do módulo `Api.elm` (#6). Enquanto isso, as
+funções na seção "DADOS FIXOS" produzem respostas no mesmo formato
+`Result String a`, de modo que a integração apenas troque a origem dos `Cmd`.
 
 -}
 
-import ApiSudoku as Api exposing (Difficulty(..))
 import Browser
 import Browser.Events
-import Html exposing (Html, aside, button, div, footer, h1, header, input, label, main_, span, text)
-import Html.Attributes exposing (attribute, checked, class, classList, disabled, type_, value)
-import Html.Events exposing (onCheck, onClick)
+import Html exposing (Html, aside, button, div, footer, form, h1, header, input, kbd, label, main_, p, span, text)
+import Html.Attributes exposing (attribute, checked, class, classList, disabled, maxlength, placeholder, title, type_, value)
+import Html.Events exposing (onCheck, onClick, onInput, onSubmit)
 import Json.Decode as Decode exposing (Decoder)
-import Set exposing (Set)
-import Sudoku exposing (Board, Cell(..), Position)
+import Task
+import Teclado exposing (Tecla(..))
+import Termo exposing (Casa(..), Cor(..), Jogo, Palpite, Remoto(..))
 
 
 
 -- MAIN
 
 
-{-| `Browser.element` cria uma aplicação que controla um elemento da página
-(veja src/main.js). O tipo `Program Flags Model Msg` diz: recebe dados de
-inicialização do tipo `Flags`, o estado é `Model` e as mensagens são `Msg`.
--}
 main : Program Flags Model Msg
 main =
     Browser.element
@@ -49,60 +46,51 @@ main =
 -- MODEL
 
 
-{-| FLAGS são dados que o JavaScript entrega ao Elm na inicialização:
-
-    Elm.Main.init({ node: ..., flags: { darkTheme: true } })
-
-O Elm não tem acesso direto a coisas como `localStorage` ou às preferências
-do sistema operacional; quem lê isso é o main.js. O runtime do Elm confere
-se o objeto JS tem o formato deste record. Se não tiver, a aplicação nem
-inicia, e o console mostra o erro.
-
+{-| Dados entregues pelo `main.js` na inicialização da página.
 -}
 type alias Flags =
     { darkTheme : Bool
     }
 
 
-type alias Model =
-    { board : Board
-    , selected : Maybe Position
-    , difficulty : Difficulty
-    , mode : InputMode
-    , darkTheme : Bool
-    , loading : Bool
-    , error : Maybe String
+{-| PROVISÓRIO (#6): mesmo formato de `Api.Sugestao`.
+Na integração da #6, importar `Api exposing (Sugestao)` e remover este alias.
+-}
+type alias Sugestao =
+    { palavra : String
+    , motivo : String
     }
 
 
-{-| O que acontece quando o jogador digita um número: ele é colocado na casa,
-ou vira uma marcação de canto (um candidato anotado).
-
-Poderíamos usar um `Bool` (`markingMode : Bool`), mas um tipo próprio deixa o
-código mais legível: `mode == CornerMarks` diz mais do que `markingMode ==
-True`, e se um dia surgir um terceiro modo (marcações de centro, cores...),
-basta acrescentar um construtor.
-
--}
-type InputMode
-    = Numbers
-    | CornerMarks
+type Modo
+    = Assistente
+    | Automatico
 
 
-{-| Estado inicial. Além do Model, `init` devolve um comando: já começamos
-pedindo um puzzle ao backend.
--}
+type alias Model =
+    { modo : Modo
+    , jogo : Jogo
+    , candidatas : Remoto (List String)
+    , sugestao : Remoto Sugestao
+    , palavraAutoplay : String
+    , autoplay : Remoto (List Palpite)
+    , erroLocal : Maybe String
+    , temaEscuro : Bool
+    }
+
+
 init : Flags -> ( Model, Cmd Msg )
 init flags =
-    ( { board = Sudoku.empty
-      , selected = Nothing
-      , difficulty = Medium
-      , mode = Numbers
-      , darkTheme = flags.darkTheme
-      , loading = True
-      , error = Nothing
+    ( { modo = Assistente
+      , jogo = Termo.novoJogo
+      , candidatas = NaoPedido
+      , sugestao = Carregando
+      , palavraAutoplay = ""
+      , autoplay = NaoPedido
+      , erroLocal = Nothing
+      , temaEscuro = flags.darkTheme
       }
-    , Api.generate Medium GotPuzzle
+    , cmdSugerir [] (RecebeuSugestao 0)
     )
 
 
@@ -110,328 +98,341 @@ init flags =
 -- UPDATE
 
 
-{-| Tudo o que pode acontecer na aplicação.
-
-Repare nas mensagens `Got...`: elas carregam um `Result`. Quem cria essas
-mensagens é o runtime do Elm, quando uma resposta HTTP chega.
-
--}
 type Msg
-    = NewGame Difficulty
-    | GotPuzzle (Result String Board)
-    | CellClicked Position
-    | NumberPressed Int
-    | ErasePressed
-    | ModeToggled
-    | ThemeToggled Bool
-    | MoveSelection Int Int
-    | HintRequested
-    | GotHint (Result String Api.Hint)
-    | SolveRequested
-    | GotSolution (Result String Board)
-    | ResetRequested
-    | ErrorDismissed
+    = ModoAlterado Modo
+    | TeclaPressionada Tecla
+    | CorTrocada Int
+    | PalavraEscolhida String
+    | NovoJogo
+    | RecebeuCandidatas Int (Result String (List String))
+    | RecebeuSugestao Int (Result String Sugestao)
+    | PalavraAutoplayAlterada String
+    | AutoplaySolicitado
+    | RecebeuAutoplay String (Result String (List Palpite))
+    | TemaAlterado Bool
+    | ErroFechado
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NewGame difficulty ->
-            -- `{ model | campo = valor }` cria uma CÓPIA do record com alguns
-            -- campos alterados. O `model` original não muda.
-            ( { model | difficulty = difficulty, loading = True, error = Nothing }
-            , Api.generate difficulty GotPuzzle
-            )
-
-        GotPuzzle (Ok board) ->
-            -- Podemos casar padrões "por dentro": aqui tratamos só o caso
-            -- `Ok`, e o caso `Err` fica num ramo separado abaixo.
-            ( { model | board = board, selected = Nothing, loading = False }
+        ModoAlterado novoModo ->
+            ( { model | modo = novoModo, erroLocal = Nothing }
             , Cmd.none
             )
 
-        GotPuzzle (Err error) ->
-            ( failed error model, Cmd.none )
+        TeclaPressionada tecla ->
+            if model.modo /= Assistente then
+                ( model, Cmd.none )
 
-        CellClicked position ->
-            ( { model | selected = Just position }, Cmd.none )
+            else
+                tratarTecla tecla model
 
-        NumberPressed n ->
-            case model.mode of
-                Numbers ->
-                    ( updateSelected (placeNumber (Guess n) n) model, Cmd.none )
+        CorTrocada coluna ->
+            if model.modo /= Assistente || Termo.terminou model.jogo then
+                ( model, Cmd.none )
 
-                CornerMarks ->
-                    ( updateSelected (\position -> Sudoku.toggleMark position n) model
-                    , Cmd.none
-                    )
+            else
+                ( { model
+                    | jogo = Termo.trocarCor coluna model.jogo
+                    , erroLocal = Nothing
+                  }
+                , Cmd.none
+                )
 
-        ErasePressed ->
-            ( updateSelected (\position -> Sudoku.setCell position Empty) model
-            , Cmd.none
-            )
+        PalavraEscolhida palavra ->
+            if model.modo /= Assistente || Termo.terminou model.jogo then
+                ( model, Cmd.none )
 
-        ModeToggled ->
-            let
-                newMode =
-                    case model.mode of
-                        Numbers ->
-                            CornerMarks
+            else
+                ( { model
+                    | jogo = preencherRascunho palavra model.jogo
+                    , erroLocal = Nothing
+                  }
+                , Cmd.none
+                )
 
-                        CornerMarks ->
-                            Numbers
-            in
-            ( { model | mode = newMode }, Cmd.none )
-
-        ThemeToggled dark ->
-            -- A troca de cores em si é feita pelo CSS do daisyUI. Aqui só
-            -- guardamos o estado do checkbox para a `view` continuar
-            -- desenhando-o marcado ou desmarcado corretamente.
-            ( { model | darkTheme = dark }, Cmd.none )
-
-        MoveSelection dRow dCol ->
-            let
-                -- `modBy 9` faz a seleção "dar a volta" nas bordas.
-                move ( row, col ) =
-                    ( modBy 9 (row + dRow), modBy 9 (col + dCol) )
-            in
-            ( { model | selected = Just (Maybe.withDefault ( 0, 0 ) (Maybe.map move model.selected)) }
-            , Cmd.none
-            )
-
-        HintRequested ->
-            ( { model | loading = True, error = Nothing }
-            , Api.hint model.board GotHint
-            )
-
-        GotHint (Ok { row, col, value }) ->
-            -- Desestruturação de record: extrai os campos direto no padrão.
+        NovoJogo ->
             ( { model
-                | board = placeNumber (Revealed value) value ( row, col ) model.board
-                , selected = Just ( row, col )
-                , loading = False
+                | jogo = Termo.novoJogo
+                , candidatas = NaoPedido
+                , sugestao = Carregando
+                , erroLocal = Nothing
+              }
+            , cmdSugerir [] (RecebeuSugestao 0)
+            )
+
+        RecebeuCandidatas passo resultado ->
+            if passo /= List.length (Termo.historico model.jogo) then
+                ( model, Cmd.none )
+
+            else
+                ( { model | candidatas = deResult resultado }
+                , Cmd.none
+                )
+
+        RecebeuSugestao passo resultado ->
+            if passo /= List.length (Termo.historico model.jogo) then
+                ( model, Cmd.none )
+
+            else
+                ( { model | sugestao = deResult resultado }
+                , Cmd.none
+                )
+
+        PalavraAutoplayAlterada texto ->
+            let
+                limpa =
+                    texto
+                        |> String.toLower
+                        |> String.filter ehLetraAscii
+                        |> String.left Termo.tamanhoPalavra
+            in
+            ( { model | palavraAutoplay = limpa, erroLocal = Nothing }
+            , Cmd.none
+            )
+
+        AutoplaySolicitado ->
+            if String.length model.palavraAutoplay < Termo.tamanhoPalavra then
+                ( { model | erroLocal = Just "Digite uma palavra de 5 letras." }
+                , Cmd.none
+                )
+
+            else
+                ( { model | autoplay = Carregando, erroLocal = Nothing }
+                , cmdJogarSozinho model.palavraAutoplay (RecebeuAutoplay model.palavraAutoplay)
+                )
+
+        RecebeuAutoplay palavra resultado ->
+            if palavra /= model.palavraAutoplay then
+                ( model, Cmd.none )
+
+            else
+                ( { model | autoplay = deResult resultado }
+                , Cmd.none
+                )
+
+        TemaAlterado escuro ->
+            ( { model | temaEscuro = escuro }
+            , Cmd.none
+            )
+
+        ErroFechado ->
+            ( { model
+                | erroLocal = Nothing
+                , candidatas = limparFalha model.candidatas
+                , sugestao = limparFalha model.sugestao
+                , autoplay = limparFalha model.autoplay
               }
             , Cmd.none
             )
 
-        GotHint (Err error) ->
-            ( failed error model, Cmd.none )
 
-        SolveRequested ->
-            -- Mandamos só as pistas originais: se o jogador errou algo, isso
-            -- não deve impedir o Prolog de achar a solução.
-            ( { model | loading = True, error = Nothing }
-            , Api.solve (Sudoku.clearGuesses model.board) GotSolution
-            )
-
-        GotSolution (Ok solution) ->
-            ( { model | board = Sudoku.revealSolution solution model.board, loading = False }
+tratarTecla : Tecla -> Model -> ( Model, Cmd Msg )
+tratarTecla tecla model =
+    case tecla of
+        Letra letra ->
+            ( { model
+                | jogo = Termo.digitar letra model.jogo
+                , erroLocal = Nothing
+              }
             , Cmd.none
             )
 
-        GotSolution (Err error) ->
-            ( failed error model, Cmd.none )
+        Apagar ->
+            ( { model
+                | jogo = Termo.apagar model.jogo
+                , erroLocal = Nothing
+              }
+            , Cmd.none
+            )
 
-        ResetRequested ->
-            ( { model | board = Sudoku.clearGuesses model.board, error = Nothing }, Cmd.none )
+        Enter ->
+            case Termo.confirmar model.jogo of
+                Err mensagem ->
+                    ( { model | erroLocal = Just mensagem }
+                    , Cmd.none
+                    )
 
-        ErrorDismissed ->
-            ( { model | error = Nothing }, Cmd.none )
+                Ok novoJogo ->
+                    if Termo.acertou novoJogo then
+                        ( { model
+                            | jogo = novoJogo
+                            , candidatas = NaoPedido
+                            , sugestao = NaoPedido
+                            , erroLocal = Nothing
+                          }
+                        , Cmd.none
+                        )
+
+                    else
+                        let
+                            hist =
+                                Termo.historico novoJogo
+
+                            passo =
+                                List.length hist
+                        in
+                        ( { model
+                            | jogo = novoJogo
+                            , candidatas = Carregando
+                            , sugestao = Carregando
+                            , erroLocal = Nothing
+                          }
+                        , Cmd.batch
+                            [ cmdBuscarCandidatas hist (RecebeuCandidatas passo)
+                            , cmdSugerir hist (RecebeuSugestao passo)
+                            ]
+                        )
 
 
-{-| Funções auxiliares deixam o `update` curto. Esta é usada por todos os
-ramos de erro.
+ehLetraAscii : Char -> Bool
+ehLetraAscii c =
+    c >= 'a' && c <= 'z'
+
+
+deResult : Result String a -> Remoto a
+deResult resultado =
+    case resultado of
+        Ok valor ->
+            Chegou valor
+
+        Err erro ->
+            Falhou erro
+
+
+limparFalha : Remoto a -> Remoto a
+limparFalha remoto =
+    case remoto of
+        Falhou _ ->
+            NaoPedido
+
+        _ ->
+            remoto
+
+
+{-| Substitui as letras do rascunho atual pela palavra escolhida, usando apenas
+as operações públicas de `Termo`.
 -}
-failed : String -> Model -> Model
-failed error model =
-    { model | loading = False, error = Just error }
-
-
-{-| Altera o tabuleiro na posição selecionada (se houver alguma).
-
-O primeiro argumento é uma FUNÇÃO: recebe a posição e o tabuleiro, e devolve
-o tabuleiro novo. Funções que recebem funções são chamadas de funções de
-ordem superior. Assim, a mesma `updateSelected` serve para colocar número,
-apagar e marcar; quem chama só diz O QUE fazer com a casa.
-
--}
-updateSelected : (Position -> Board -> Board) -> Model -> Model
-updateSelected change model =
-    case model.selected of
-        Just position ->
-            { model | board = change position model.board }
-
-        Nothing ->
-            model
-
-
-{-| Coloca um número numa casa e apaga essa marcação dos vizinhos.
-
-Se a casa é uma pista original, nada muda: nem a casa, nem as marcações dos
-vizinhos. (Sem esse `if`, `setCell` recusaria a alteração, mas
-`removeMarkFromPeers` rodaria mesmo assim e apagaria marcações à toa.)
-
-Repare que a assinatura termina em `Position -> Board -> Board`. Por isso
-`placeNumber (Guess n) n` (só com dois argumentos) já é uma função do tipo
-que `updateSelected` espera. Isso é APLICAÇÃO PARCIAL: em Elm, toda função
-de vários argumentos pode receber só os primeiros e devolver uma função que
-espera o resto.
-
--}
-placeNumber : Cell -> Int -> Position -> Board -> Board
-placeNumber cell n position board =
-    if Sudoku.isGiven (Sudoku.cellAt position board) then
-        board
-
-    else
-        board
-            |> Sudoku.setCell position cell
-            |> Sudoku.removeMarkFromPeers position n
+preencherRascunho : String -> Jogo -> Jogo
+preencherRascunho palavra jogo =
+    let
+        limpo =
+            List.foldl (\_ acc -> Termo.apagar acc)
+                jogo
+                (List.range 1 Termo.tamanhoPalavra)
+    in
+    List.foldl Termo.digitar limpo (String.toList palavra)
 
 
 
 -- SUBSCRIPTIONS
 
 
-{-| Subscriptions são fontes de eventos externos que queremos escutar
-continuamente. Aqui: as teclas pressionadas em qualquer lugar da página.
+{-| O teclado físico só é capturado globalmente no modo assistente, para não
+interferir na digitação dentro do `<input>` do modo automático.
 -}
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Browser.Events.onKeyDown keyDecoder
+subscriptions model =
+    case model.modo of
+        Assistente ->
+            Browser.Events.onKeyDown teclaDecoder
+
+        Automatico ->
+            Sub.none
 
 
-{-| Eventos do navegador chegam como JSON; lemos o campo `key` do evento.
+teclaDecoder : Decoder Msg
+teclaDecoder =
+    Decode.map5
+        (\chave ctrl alt meta tag ->
+            { chave = chave
+            , modificador = ctrl || alt || meta
+            , emCampoTexto = tag == "INPUT" || tag == "TEXTAREA"
+            , emBotao = tag == "BUTTON"
+            }
+        )
+        (Decode.field "key" Decode.string)
+        (Decode.field "ctrlKey" Decode.bool)
+        (Decode.field "altKey" Decode.bool)
+        (Decode.field "metaKey" Decode.bool)
+        (Decode.at [ "target", "tagName" ] Decode.string |> Decode.maybe |> Decode.map (Maybe.withDefault ""))
+        |> Decode.andThen interpretarEvento
 
-Truque útil: para teclas que não nos interessam, o decoder FALHA
-(`Decode.fail`). Um decoder que falha simplesmente não gera mensagem, então o
-`update` nunca fica sabendo dessas teclas.
 
--}
-keyDecoder : Decoder Msg
-keyDecoder =
-    Decode.field "key" Decode.string
-        |> Decode.andThen keyToMsg
+interpretarEvento : { chave : String, modificador : Bool, emCampoTexto : Bool, emBotao : Bool } -> Decoder Msg
+interpretarEvento evento =
+    if evento.modificador || evento.emCampoTexto || (evento.emBotao && evento.chave == "Enter") then
+        Decode.fail "evento ignorado"
 
+    else
+        case evento.chave of
+            "1" ->
+                Decode.succeed (CorTrocada 0)
 
-keyToMsg : String -> Decoder Msg
-keyToMsg key =
-    case key of
-        "ArrowUp" ->
-            Decode.succeed (MoveSelection -1 0)
+            "2" ->
+                Decode.succeed (CorTrocada 1)
 
-        "ArrowDown" ->
-            Decode.succeed (MoveSelection 1 0)
+            "3" ->
+                Decode.succeed (CorTrocada 2)
 
-        "ArrowLeft" ->
-            Decode.succeed (MoveSelection 0 -1)
+            "4" ->
+                Decode.succeed (CorTrocada 3)
 
-        "ArrowRight" ->
-            Decode.succeed (MoveSelection 0 1)
+            "5" ->
+                Decode.succeed (CorTrocada 4)
 
-        "Backspace" ->
-            Decode.succeed ErasePressed
+            _ ->
+                case Teclado.teclaFisica evento.chave of
+                    Just tecla ->
+                        Decode.succeed (TeclaPressionada tecla)
 
-        "Delete" ->
-            Decode.succeed ErasePressed
-
-        "n" ->
-            Decode.succeed ModeToggled
-
-        "N" ->
-            Decode.succeed ModeToggled
-
-        _ ->
-            case String.toInt key of
-                Just n ->
-                    -- A tecla "0" também apaga a casa.
-                    if n >= 1 && n <= 9 then
-                        Decode.succeed (NumberPressed n)
-
-                    else
-                        Decode.succeed ErasePressed
-
-                Nothing ->
-                    Decode.fail "tecla ignorada"
+                    Nothing ->
+                        Decode.fail "tecla ignorada"
 
 
 
 -- VIEW
---
--- As funções de HTML do Elm seguem sempre o formato:
---
---     elemento [ atributos ] [ filhos ]
---
--- As classes usadas aqui são SEMÂNTICAS: dizem o que o elemento é
--- ("board", "cell", "number-key"), e não como ele aparece. A aparência fica
--- toda em src/style.css. Para mudar o visual, quase nunca é preciso mexer
--- neste arquivo.
---
--- Os modificadores (classes com `--`, como "cell--selected") são ligados e
--- desligados com `classList`, que recebe pares (classe, condição).
+
+
+limiteCandidatas : Int
+limiteCandidatas =
+    48
 
 
 view : Model -> Html Msg
 view model =
-    div
-        [ class "app"
-
-        -- Um atributo `data-*` guarda um estado que o CSS pode ler com o
-        -- seletor [data-mode="marks"]. Veja `.number-key` no style.css.
-        , attribute "data-mode"
-            (case model.mode of
-                Numbers ->
-                    "numbers"
-
-                CornerMarks ->
-                    "marks"
-            )
-        ]
+    div [ class "app" ]
         [ header [ class "app-header" ]
             [ div [ class "app-container app-header-content" ]
-                [ h1 [ class "app-title" ] [ text "Sudoku" ]
+                [ h1 [ class "app-title" ] [ text "Termo" ]
                 , span [ class "app-subtitle" ] [ text "Prolog + Elm" ]
                 , viewThemeToggle model
                 ]
             ]
         , main_ [ class "app-main" ]
-            -- Um elemento pode ter várias classes: "app-container" define a
-            -- largura (a mesma do cabeçalho) e "game" define o layout interno.
             [ div [ class "app-container game" ]
-                [ viewBoard model
-                , aside [ class "side-panel" ]
-                    [ span [ class "panel-label" ] [ text "Novo jogo" ]
-                    , viewDifficulty model
-                    , div [ class "message-area" ] [ viewMessages model ]
-                    , span [ class "panel-label" ] [ text "Números" ]
-                    , viewNumberPad model
-                    , span [ class "panel-label" ] [ text "Ajuda" ]
-                    , viewActions model
+                [ div [ class "area-jogo" ]
+                    [ viewGrade model
+                    , if model.modo == Assistente then
+                        Teclado.viewTeclado TeclaPressionada model.jogo
+
+                      else
+                        text ""
                     ]
+                , aside [ class "side-panel" ]
+                    ([ span [ class "panel-label" ] [ text "Modo" ]
+                     , viewSeletorModo model.modo
+                     , div [ class "message-area" ] [ viewMensagens model ]
+                     ]
+                        ++ viewPainelDoModo model
+                    )
                 ]
             ]
-        , footer [ class "app-footer" ]
-            [ text "Teclado: "
-            , kbd [] [ text "1–9" ]
-            , text " coloca, "
-            , kbd [] [ text "setas" ]
-            , text " movem, "
-            , kbd [] [ text "⌫" ]
-            , text " apaga, "
-            , kbd [] [ text "N" ]
-            , text " liga as marcações de canto."
-            ]
+        , viewRodape model.modo
         ]
 
 
-{-| Botão sol/lua para trocar entre os temas claro e escuro.
-
-É o componente `theme-controller` do daisyUI: um checkbox cujo `value` é o
-nome do tema. Quando está marcado, o CSS aplica o tema `dark`
-(veja a seção 2 do style.css). O `<label>` envolve o checkbox, então clicar
-em qualquer parte dele (no ícone, por exemplo) marca ou desmarca a caixa.
-
--}
 viewThemeToggle : Model -> Html Msg
 viewThemeToggle model =
     label [ class "theme-toggle", attribute "aria-label" "Alternar tema claro/escuro" ]
@@ -439,216 +440,535 @@ viewThemeToggle model =
             [ type_ "checkbox"
             , class "theme-controller"
             , value "dark"
-            , checked model.darkTheme
-
-            -- `onCheck` entrega o novo estado (True/False) do checkbox.
-            , onCheck ThemeToggled
+            , checked model.temaEscuro
+            , onCheck TemaAlterado
             ]
             []
-        , span [ class "swap-off" ] [ text "☀" ]
-        , span [ class "swap-on" ] [ text "☾" ]
+        , span [ class "swap-off" ] [ text "🌙" ]
+        , span [ class "swap-on" ] [ text "☀" ]
         ]
 
 
-{-| `Html.node` cria um elemento com qualquer nome de tag. O pacote elm/html
-não tem uma função `kbd` pronta, então definimos a nossa.
--}
-kbd : List (Html.Attribute msg) -> List (Html msg) -> Html msg
-kbd =
-    Html.node "kbd"
+viewSeletorModo : Modo -> Html Msg
+viewSeletorModo atual =
+    div [ class "modo-seletor" ]
+        [ viewOpcaoModo atual Assistente "Assistente"
+        , viewOpcaoModo atual Automatico "Automático"
+        ]
 
 
-viewDifficulty : Model -> Html Msg
-viewDifficulty model =
+viewOpcaoModo : Modo -> Modo -> String -> Html Msg
+viewOpcaoModo atual modo rotulo =
+    button
+        [ type_ "button"
+        , classList
+            [ ( "modo-opcao", True )
+            , ( "modo-opcao--ativo", atual == modo )
+            ]
+        , onClick (ModoAlterado modo)
+        ]
+        [ text rotulo ]
+
+
+viewGrade : Model -> Html Msg
+viewGrade model =
     let
-        option difficulty =
-            button
-                [ class "difficulty-option"
-                , classList [ ( "difficulty-option--active", difficulty == model.difficulty ) ]
-                , disabled model.loading
-                , onClick (NewGame difficulty)
-                ]
-                [ text (Api.difficultyLabel difficulty) ]
+        jogoExibido =
+            case model.modo of
+                Assistente ->
+                    model.jogo
+
+                Automatico ->
+                    jogoDoAutoplay model.autoplay
+
+        podeEditar =
+            model.modo == Assistente && not (Termo.terminou model.jogo)
     in
-    div [ class "difficulty-picker" ] (List.map option [ Easy, Medium, Hard ])
+    div [ class "grade", attribute "role" "grid", attribute "aria-label" "Grade do Termo" ]
+        (List.map (viewLinha podeEditar) (Termo.grade jogoExibido))
 
 
-viewMessages : Model -> Html Msg
-viewMessages model =
-    case ( model.error, model.loading ) of
-        -- Casamento de padrões numa tupla: tratamos combinações de dois
-        -- valores de uma só vez.
-        ( Just error, _ ) ->
-            div [ class "message message--error" ]
-                [ span [] [ text error ]
-                , button [ class "message-close", onClick ErrorDismissed ] [ text "✕" ]
+jogoDoAutoplay : Remoto (List Palpite) -> Jogo
+jogoDoAutoplay estado =
+    case estado of
+        Chegou passos ->
+            Termo.deHistorico passos
+
+        _ ->
+            Termo.novoJogo
+
+
+viewLinha : Bool -> List Casa -> Html Msg
+viewLinha podeEditar casas =
+    div [ class "linha", attribute "role" "row" ]
+        (List.indexedMap (viewCasa podeEditar) casas)
+
+
+viewCasa : Bool -> Int -> Casa -> Html Msg
+viewCasa podeEditar coluna casa =
+    case casa of
+        Vazia ->
+            div [ class "casa casa--vazia", attribute "role" "gridcell" ] []
+
+        Rascunho letra cor ->
+            let
+                letraStr =
+                    String.fromChar (Char.toUpper letra)
+
+                posicao =
+                    String.fromInt (coluna + 1)
+
+                descricao =
+                    "Letra "
+                        ++ letraStr
+                        ++ " na posição "
+                        ++ posicao
+                        ++ " ("
+                        ++ nomeDaCor cor
+                        ++ "). Clique ou aperte "
+                        ++ posicao
+                        ++ " para trocar a cor."
+            in
+            button
+                [ type_ "button"
+                , class ("casa casa--rascunho " ++ classeDaCor cor)
+                , title ("Clique ou aperte " ++ posicao ++ " para trocar a cor")
+                , attribute "aria-label" descricao
+                , disabled (not podeEditar)
+                , onClick (CorTrocada coluna)
                 ]
+                [ text letraStr ]
 
-        ( Nothing, True ) ->
-            div [ class "message message--loading" ]
-                [ span [ class "spinner" ] []
-                , span [] [ text "O Prolog está pensando..." ]
+        Confirmada letra cor ->
+            div
+                [ class ("casa casa--confirmada " ++ classeDaCor cor)
+                , attribute "role" "gridcell"
+                , attribute "aria-label"
+                    (String.fromChar (Char.toUpper letra) ++ " — " ++ nomeDaCor cor)
                 ]
+                [ text (String.fromChar (Char.toUpper letra)) ]
 
-        ( Nothing, False ) ->
-            if Sudoku.isComplete model.board then
-                div [ class "message message--success" ]
-                    [ text (completionMessage model.board) ]
+
+classeDaCor : Cor -> String
+classeDaCor cor =
+    case cor of
+        Verde ->
+            "casa--verde"
+
+        Amarelo ->
+            "casa--amarela"
+
+        Cinza ->
+            "casa--cinza"
+
+
+nomeDaCor : Cor -> String
+nomeDaCor cor =
+    case cor of
+        Verde ->
+            "verde"
+
+        Amarelo ->
+            "amarelo"
+
+        Cinza ->
+            "cinza"
+
+
+viewMensagens : Model -> Html Msg
+viewMensagens model =
+    case model.erroLocal of
+        Just erro ->
+            viewAlertaErro erro
+
+        Nothing ->
+            case erroRemotoDoModo model of
+                Just erro ->
+                    viewAlertaErro erro
+
+                Nothing ->
+                    if estaCarregando model then
+                        div [ class "message message--loading", attribute "role" "status" ]
+                            [ span [ class "spinner" ] []
+                            , span [] [ text "Consultando o Prolog..." ]
+                            ]
+
+                    else
+                        viewEstadoDaPartida model
+
+
+viewAlertaErro : String -> Html Msg
+viewAlertaErro erro =
+    div [ class "message message--error", attribute "role" "alert" ]
+        [ span [] [ text erro ]
+        , button
+            [ type_ "button"
+            , class "message-close"
+            , attribute "aria-label" "Fechar aviso"
+            , onClick ErroFechado
+            ]
+            [ text "×" ]
+        ]
+
+
+erroRemotoDoModo : Model -> Maybe String
+erroRemotoDoModo model =
+    case model.modo of
+        Assistente ->
+            case model.sugestao of
+                Falhou erro ->
+                    Just erro
+
+                _ ->
+                    case model.candidatas of
+                        Falhou erro ->
+                            Just erro
+
+                        _ ->
+                            Nothing
+
+        Automatico ->
+            case model.autoplay of
+                Falhou erro ->
+                    Just erro
+
+                _ ->
+                    Nothing
+
+
+estaCarregando : Model -> Bool
+estaCarregando model =
+    case model.modo of
+        Assistente ->
+            model.candidatas == Carregando || model.sugestao == Carregando
+
+        Automatico ->
+            model.autoplay == Carregando
+
+
+viewEstadoDaPartida : Model -> Html Msg
+viewEstadoDaPartida model =
+    case model.modo of
+        Assistente ->
+            if Termo.acertou model.jogo then
+                let
+                    n =
+                        List.length (Termo.historico model.jogo)
+                in
+                div [ class "message message--success", attribute "role" "status" ]
+                    [ text ("Palavra encontrada em " ++ formatarTentativas n ++ "!") ]
+
+            else if Termo.terminou model.jogo then
+                div [ class "message message--info", attribute "role" "status" ]
+                    [ text "Limite de 6 tentativas atingido. Inicie uma nova partida." ]
 
             else
                 text ""
 
+        Automatico ->
+            case model.autoplay of
+                Chegou passos ->
+                    let
+                        n =
+                            List.length passos
 
-completionMessage : Board -> String
-completionMessage board =
-    let
-        revealed =
-            Sudoku.positions
-                |> List.any (\pos -> Sudoku.isRevealed (Sudoku.cellAt pos board))
-    in
-    if revealed then
-        "Resolvido (com ajuda do Prolog)."
+                        sufixoGrade =
+                            if n > Termo.maxPalpites then
+                                " (a grade exibe as " ++ String.fromInt Termo.maxPalpites ++ " primeiras)"
+
+                            else
+                                ""
+                    in
+                    if n == 0 then
+                        div [ class "message message--info", attribute "role" "status" ]
+                            [ text "Nenhum passo retornado." ]
+
+                    else if acertouNosPassos passos then
+                        div [ class "message message--success", attribute "role" "status" ]
+                            [ text ("Solver acertou em " ++ formatarTentativas n ++ sufixoGrade ++ "!") ]
+
+                    else
+                        div [ class "message message--info", attribute "role" "status" ]
+                            [ text ("Solver terminou após " ++ formatarTentativas n ++ sufixoGrade ++ ".") ]
+
+                _ ->
+                    text ""
+
+
+acertouNosPassos : List Palpite -> Bool
+acertouNosPassos passos =
+    List.any
+        (\palpite ->
+            List.length palpite.cores == Termo.tamanhoPalavra && List.all ((==) Verde) palpite.cores
+        )
+        passos
+
+
+formatarTentativas : Int -> String
+formatarTentativas n =
+    if n == 1 then
+        "1 tentativa"
 
     else
-        "Parabéns! Você resolveu o puzzle!"
+        String.fromInt n ++ " tentativas"
 
 
-viewBoard : Model -> Html Msg
-viewBoard model =
-    let
-        conflicts =
-            Sudoku.conflicts model.board
-    in
-    div
-        [ class "board"
-        , classList [ ( "board--solved", Sudoku.isComplete model.board ) ]
-        ]
-        (List.map (viewCell model conflicts) Sudoku.positions)
-
-
-viewCell : Model -> Set Position -> Position -> Html Msg
-viewCell model conflicts (( row, col ) as position) =
-    let
-        cell =
-            Sudoku.cellAt position model.board
-
-        value =
-            Sudoku.valueOf cell
-
-        -- A casa está na mesma linha, coluna ou bloco da selecionada?
-        isRelated =
-            case model.selected of
-                Just (( selRow, selCol ) as sel) ->
-                    selRow == row || selCol == col || Sudoku.sameBox sel position
-
-                Nothing ->
-                    False
-
-        -- Número da casa selecionada. `Maybe.andThen` encadeia dois passos
-        -- que podem dar Nothing: não haver seleção, ou a casa estar vazia.
-        selectedValue =
-            model.selected
-                |> Maybe.andThen (\sel -> Sudoku.valueOf (Sudoku.cellAt sel model.board))
-    in
-    button
-        [ class "cell"
-        , classList
-            [ ( "cell--selected", model.selected == Just position )
-            , ( "cell--related", isRelated )
-            , ( "cell--same-value", value /= Nothing && value == selectedValue )
-            , ( "cell--conflict", Set.member position conflicts )
-            , ( "cell--given", Sudoku.isGiven cell )
-            , ( "cell--guess", Sudoku.isGuess cell )
-            , ( "cell--revealed", Sudoku.isRevealed cell )
+viewPainelDoModo : Model -> List (Html Msg)
+viewPainelDoModo model =
+    case model.modo of
+        Assistente ->
+            [ button
+                [ type_ "button"
+                , class "acao-nova-partida"
+                , onClick NovoJogo
+                ]
+                [ text "Nova partida" ]
+            , viewSecaoSugestao model
+            , viewSecaoCandidatas model
             ]
 
-        -- Leitores de tela anunciam este texto (acessibilidade). As linhas
-        -- grossas dos blocos 3x3 são desenhadas pelo CSS com :nth-child,
-        -- então o Elm não precisa passar linha e coluna para o estilo.
-        , attribute "aria-label"
-            ("Linha " ++ String.fromInt (row + 1) ++ ", coluna " ++ String.fromInt (col + 1))
-        , onClick (CellClicked position)
-        ]
-        [ case cell of
-            Marks marks ->
-                viewCornerMarks selectedValue marks
-
-            _ ->
-                -- O número fica num <span> próprio para que as animações do
-                -- CSS movam só o número, e não a casa com suas bordas.
-                span [ class "cell-value" ]
-                    [ text (Maybe.map String.fromInt value |> Maybe.withDefault "") ]
-        ]
-
-
-{-| Desenha as marcações de canto de uma casa.
-
-O Elm só coloca as marcações em ordem crescente (`Set.toList` já devolve os
-elementos ordenados). Quem decide em que canto cada uma aparece é o CSS, com
-`:nth-child` (veja `.corner-mark` no style.css). Cada linguagem faz o que
-faz melhor: o Elm cuida dos dados e o CSS cuida do posicionamento.
-
--}
-viewCornerMarks : Maybe Int -> Set Int -> Html Msg
-viewCornerMarks selectedValue marks =
-    let
-        viewMark n =
-            span
-                [ class "corner-mark"
-                , classList [ ( "corner-mark--highlight", Just n == selectedValue ) ]
-                ]
-                [ text (String.fromInt n) ]
-    in
-    div [ class "corner-marks" ] (List.map viewMark (Set.toList marks))
-
-
-viewNumberPad : Model -> Html Msg
-viewNumberPad model =
-    let
-        marking =
-            model.mode == CornerMarks
-
-        noSelection =
-            model.selected == Nothing
-
-        numberKey n =
-            button
-                [ class "number-key"
-                , disabled noSelection
-                , onClick (NumberPressed n)
-                ]
-                [ text (String.fromInt n) ]
-    in
-    div [ class "number-pad" ]
-        (List.map numberKey (List.range 1 9)
-            ++ [ button [ class "erase-key", disabled noSelection, onClick ErasePressed ] [ text "⌫" ]
-               , button
-                    [ class "mode-toggle"
-                    , classList [ ( "mode-toggle--on", marking ) ]
-                    , onClick ModeToggled
+        Automatico ->
+            [ div [ class "painel-secao" ]
+                [ span [ class "panel-label" ] [ text "Palavra secreta" ]
+                , form [ class "autoplay-form", onSubmit AutoplaySolicitado ]
+                    [ input
+                        [ type_ "text"
+                        , class "autoplay-input"
+                        , placeholder "Ex.: carro"
+                        , maxlength Termo.tamanhoPalavra
+                        , value model.palavraAutoplay
+                        , onInput PalavraAutoplayAlterada
+                        , attribute "aria-label" "Palavra de 5 letras para o modo automático"
+                        ]
+                        []
+                    , button
+                        [ type_ "submit"
+                        , class "autoplay-botao"
+                        , disabled (model.autoplay == Carregando)
+                        ]
+                        [ text "Jogar sozinho" ]
                     ]
-                    [ text
-                        (if marking then
-                            "✎ Marcando"
+                , p [ class "painel-dica" ]
+                    [ text "Informe uma palavra de 5 letras sem acentos para o Prolog jogar sozinho até acertá-la." ]
+                ]
+            ]
 
-                         else
-                            "✎ Marcar"
-                        )
+
+viewSecaoSugestao : Model -> Html Msg
+viewSecaoSugestao model =
+    div [ class "painel-secao" ]
+        [ span [ class "panel-label" ] [ text "Sugestão de palpite" ]
+        , case model.sugestao of
+            NaoPedido ->
+                p [ class "painel-dica" ]
+                    [ text "Confirme um palpite para ver a próxima sugestão." ]
+
+            Carregando ->
+                p [ class "painel-dica" ]
+                    [ text "Calculando sugestão..." ]
+
+            Falhou _ ->
+                p [ class "painel-dica" ]
+                    [ text "Não foi possível obter uma sugestão." ]
+
+            Chegou sugestao ->
+                div [ class "sugestao-card" ]
+                    [ div [ class "sugestao-topo" ]
+                        [ button
+                            [ type_ "button"
+                            , class "sugestao-palavra"
+                            , title "Clique para preencher no rascunho atual"
+                            , disabled (Termo.terminou model.jogo)
+                            , onClick (PalavraEscolhida sugestao.palavra)
+                            ]
+                            [ text sugestao.palavra ]
+                        ]
+                    , p [ class "sugestao-motivo" ] [ text sugestao.motivo ]
                     ]
-               ]
+        ]
+
+
+viewSecaoCandidatas : Model -> Html Msg
+viewSecaoCandidatas model =
+    let
+        titulo =
+            case model.candidatas of
+                Chegou palavras ->
+                    "Candidatas restantes (" ++ String.fromInt (List.length palavras) ++ ")"
+
+                _ ->
+                    "Candidatas restantes"
+    in
+    div [ class "painel-secao" ]
+        [ span [ class "panel-label" ] [ text titulo ]
+        , case model.candidatas of
+            NaoPedido ->
+                p [ class "painel-dica" ]
+                    [ text "Digite um palpite, clique nas casas (ou use 1–5) para marcar as cores e confirme com Enter." ]
+
+            Carregando ->
+                p [ class "painel-dica" ]
+                    [ text "Filtrando palavras..." ]
+
+            Falhou _ ->
+                p [ class "painel-dica" ]
+                    [ text "Sem candidatas disponíveis." ]
+
+            Chegou [] ->
+                p [ class "painel-dica" ]
+                    [ text "Nenhuma palavra candidata restante." ]
+
+            Chegou palavras ->
+                let
+                    total =
+                        List.length palavras
+
+                    visiveis =
+                        List.take limiteCandidatas palavras
+
+                    restantes =
+                        total - limiteCandidatas
+
+                    desabilitado =
+                        Termo.terminou model.jogo
+                in
+                div [ class "painel-secao" ]
+                    [ div [ class "candidatas-lista" ]
+                        (List.map (viewCandidata desabilitado) visiveis)
+                    , if restantes > 0 then
+                        p [ class "candidatas-extras" ]
+                            [ text ("+ " ++ String.fromInt restantes ++ " outras palavras") ]
+
+                      else
+                        text ""
+                    ]
+        ]
+
+
+viewCandidata : Bool -> String -> Html Msg
+viewCandidata desabilitado palavra =
+    button
+        [ type_ "button"
+        , class "candidata"
+        , title "Clique para preencher no rascunho atual"
+        , disabled desabilitado
+        , onClick (PalavraEscolhida palavra)
+        ]
+        [ text palavra ]
+
+
+viewRodape : Modo -> Html Msg
+viewRodape modo =
+    footer [ class "app-footer" ]
+        (case modo of
+            Assistente ->
+                [ text "Teclado: "
+                , kbd [] [ text "A–Z" ]
+                , text " digita, "
+                , kbd [] [ text "1–5" ]
+                , text " muda a cor, "
+                , kbd [] [ text "⌫" ]
+                , text " apaga, "
+                , kbd [] [ text "Enter" ]
+                , text " confirma."
+                ]
+
+            Automatico ->
+                [ text "Digite uma palavra de 5 letras e pressione "
+                , kbd [] [ text "Enter" ]
+                , text " para ver o solver jogar sozinho."
+                ]
         )
 
 
-viewActions : Model -> Html Msg
-viewActions model =
+
+-- DADOS FIXOS (SUBSTITUIR POR Api.elm NA #6)
+--
+-- Cada função abaixo tem exatamente a assinatura correspondente em `Api.elm`:
+--   - `cmdBuscarCandidatas` -> `Api.buscarCandidatas`
+--   - `cmdSugerir`          -> `Api.sugerir`
+--   - `cmdJogarSozinho`     -> `Api.jogarSozinho`
+--
+-- Palavra-sentinela `"zzzzz"` devolve `Err` com as mensagens 422 da #7 para
+-- validar a exibição de erros antes da integração HTTP.
+
+
+cmdBuscarCandidatas : List Palpite -> (Result String (List String) -> msg) -> Cmd msg
+cmdBuscarCandidatas historico toMsg =
     let
-        -- Com o tabuleiro completo não há o que revelar: os botões de ajuda
-        -- ficam desativados, e a mensagem de parabéns continua na tela.
-        nothingToReveal =
-            model.loading || Sudoku.isComplete model.board
+        resultado =
+            if temSentinelaErro historico then
+                Err "Nenhuma palavra corresponde às cores informadas."
+
+            else if List.length historico <= 1 then
+                Ok [ "carro", "jarro", "farro", "parro", "corvo", "cervo" ]
+
+            else
+                Ok [ "carro", "jarro" ]
     in
-    div [ class "actions" ]
-        [ button [ class "action-button action-button--hint", disabled nothingToReveal, onClick HintRequested ] [ text "Dica" ]
-        , button [ class "action-button action-button--solve", disabled nothingToReveal, onClick SolveRequested ] [ text "Resolver" ]
-        , button [ class "action-button action-button--reset", disabled model.loading, onClick ResetRequested ] [ text "Limpar" ]
-        ]
+    Task.succeed resultado |> Task.perform toMsg
+
+
+cmdSugerir : List Palpite -> (Result String Sugestao -> msg) -> Cmd msg
+cmdSugerir historico toMsg =
+    let
+        resultado =
+            if temSentinelaErro historico then
+                Err "Nenhuma palavra corresponde às cores informadas."
+
+            else
+                case List.length historico of
+                    0 ->
+                        Ok
+                            { palavra = "serao"
+                            , motivo = "palavra de abertura calculada por minimax (dados fixos)"
+                            }
+
+                    1 ->
+                        Ok
+                            { palavra = "corvo"
+                            , motivo = "restam 6 palavras; com este palpite sobram no máximo 2 (dados fixos)"
+                            }
+
+                    _ ->
+                        Ok
+                            { palavra = "carro"
+                            , motivo = "restam 2 palavras; com este palpite sobra no máximo 1 (dados fixos)"
+                            }
+    in
+    Task.succeed resultado |> Task.perform toMsg
+
+
+cmdJogarSozinho : String -> (Result String (List Palpite) -> msg) -> Cmd msg
+cmdJogarSozinho palavra toMsg =
+    let
+        resultado =
+            if palavra == "zzzzz" then
+                Err "Palavra não encontrada na base."
+
+            else if palavra == "serao" then
+                Ok
+                    [ { palavra = "serao"
+                      , cores = [ Verde, Verde, Verde, Verde, Verde ]
+                      }
+                    ]
+
+            else
+                Ok
+                    [ { palavra = "serao"
+                      , cores = [ Cinza, Cinza, Amarelo, Amarelo, Amarelo ]
+                      }
+                    , { palavra = "barra"
+                      , cores = [ Cinza, Verde, Verde, Verde, Cinza ]
+                      }
+                    , { palavra = palavra
+                      , cores = [ Verde, Verde, Verde, Verde, Verde ]
+                      }
+                    ]
+    in
+    Task.succeed resultado |> Task.perform toMsg
+
+
+temSentinelaErro : List Palpite -> Bool
+temSentinelaErro historico =
+    List.any (\palpite -> palpite.palavra == "zzzzz") historico
