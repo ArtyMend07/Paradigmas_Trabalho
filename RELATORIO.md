@@ -34,7 +34,7 @@
 
 | Nome completo | Matrícula | Turma (14h/16h) | Usuário GitHub |
 |---------------|-----------|-----------------|----------------|
-| [Nome]        | [000000]  | [14h]           | [@usuario]     |
+| João Pedro Costa | 190030801 | 16h          | @johnaopedro   |
 | [Nome]        | [000000]  | [16h]           | [@usuario]     |
 | [Nome]        | [000000]  | [14h]           | [@usuario]     |
 | [Nome]        | [000000]  | [16h]           | [@usuario]     |
