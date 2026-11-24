@@ -20,7 +20,8 @@ load_respostas(Arquivo) :-
 :- use_module(strategy).
 
 % autoplay(+Resposta, -Passos)
-% o solver joga sozinho ate acertar. na ordem em que foram jogados, e o ultimo e a resposta toda green.
+% o solver joga sozinho ate acertar. Passos e a lista de [Palpite, Cores]
+% na ordem em que foram jogados, e o ultimo e a resposta toda green.
 % falha se a palavra nao for resposta/1.
 autoplay(Resposta, Passos) :-
     atom_string(R, Resposta),   % aceita atomo ou string (vindo do python)
