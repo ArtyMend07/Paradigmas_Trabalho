@@ -1,9 +1,10 @@
 module ApiTest exposing (suite)
 
-import Api exposing (Cor(..))
+import Api
 import Expect
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Termo exposing (Cor(..))
 import Test exposing (Test, describe, test)
 
 

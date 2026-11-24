@@ -1,7 +1,5 @@
 module Api exposing
-    ( Cor(..)
-    , Palpite
-    , Sugestao
+    ( Sugestao
     , buscarCandidatas
     , candidatasDecoder
     , corDecoder
@@ -47,30 +45,11 @@ devolvem um `Cmd msg`, que o runtime do Elm executa. A resposta volta ao
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
+import Termo exposing (Cor(..), Palpite)
 
 
 
 -- TIPOS
-
-
-{-| A cor de uma letra no Termo.
-
-PROVISÓRIO: este tipo pertence a `Termo.elm` (#4). Quando ele existir,
-apagar a definição daqui e importar de lá; o resto do módulo não muda.
-
--}
-type Cor
-    = Verde
-    | Amarelo
-    | Cinza
-
-
-{-| Uma linha do jogo: a palavra tentada e a cor de cada uma das 5 letras.
--}
-type alias Palpite =
-    { palavra : String
-    , cores : List Cor
-    }
 
 
 type alias Sugestao =
