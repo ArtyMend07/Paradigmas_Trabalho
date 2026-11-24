@@ -11,19 +11,18 @@ Dois modos de operação:
   - `Automatico`: o jogador informa uma palavra de 5 letras e o solver mostra
     na grade 6×5 todos os passos até acertá-la.
 
-As chamadas HTTP ficam a cargo do módulo `Api.elm` (#6). Enquanto isso, as
-funções na seção "DADOS FIXOS" produzem respostas no mesmo formato
-`Result String a`, de modo que a integração apenas troque a origem dos `Cmd`.
+As chamadas HTTP ficam no módulo `Api.elm`. Cada resposta volta ao `update`
+como `Result String a` e vira um `Remoto` (`Chegou` ou `Falhou`).
 
 -}
 
+import Api exposing (Sugestao)
 import Browser
 import Browser.Events
 import Html exposing (Html, aside, button, div, footer, form, h1, header, input, kbd, label, main_, p, span, text)
 import Html.Attributes exposing (attribute, checked, class, classList, disabled, maxlength, placeholder, title, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput, onSubmit)
 import Json.Decode as Decode exposing (Decoder)
-import Task
 import Teclado exposing (Tecla(..))
 import Termo exposing (Casa(..), Cor(..), Jogo, Palpite, Remoto(..))
 
@@ -50,15 +49,6 @@ main =
 -}
 type alias Flags =
     { darkTheme : Bool
-    }
-
-
-{-| PROVISÓRIO (#6): mesmo formato de `Api.Sugestao`.
-Na integração da #6, importar `Api exposing (Sugestao)` e remover este alias.
--}
-type alias Sugestao =
-    { palavra : String
-    , motivo : String
     }
 
 
@@ -90,7 +80,7 @@ init flags =
       , erroLocal = Nothing
       , temaEscuro = flags.darkTheme
       }
-    , cmdSugerir [] (RecebeuSugestao 0)
+    , Api.sugerir [] (RecebeuSugestao 0)
     )
 
 
@@ -159,7 +149,7 @@ update msg model =
                 , sugestao = Carregando
                 , erroLocal = Nothing
               }
-            , cmdSugerir [] (RecebeuSugestao 0)
+            , Api.sugerir [] (RecebeuSugestao 0)
             )
 
         RecebeuCandidatas passo resultado ->
@@ -200,7 +190,7 @@ update msg model =
 
             else
                 ( { model | autoplay = Carregando, erroLocal = Nothing }
-                , cmdJogarSozinho model.palavraAutoplay (RecebeuAutoplay model.palavraAutoplay)
+                , Api.jogarSozinho model.palavraAutoplay (RecebeuAutoplay model.palavraAutoplay)
                 )
 
         RecebeuAutoplay palavra resultado ->
@@ -280,8 +270,8 @@ tratarTecla tecla model =
                             , erroLocal = Nothing
                           }
                         , Cmd.batch
-                            [ cmdBuscarCandidatas hist (RecebeuCandidatas passo)
-                            , cmdSugerir hist (RecebeuSugestao passo)
+                            [ Api.buscarCandidatas hist (RecebeuCandidatas passo)
+                            , Api.sugerir hist (RecebeuSugestao passo)
                             ]
                         )
 
@@ -879,96 +869,3 @@ viewRodape modo =
                 , text " para ver o solver jogar sozinho."
                 ]
         )
-
-
-
--- DADOS FIXOS (SUBSTITUIR POR Api.elm NA #6)
---
--- Cada função abaixo tem exatamente a assinatura correspondente em `Api.elm`:
---   - `cmdBuscarCandidatas` -> `Api.buscarCandidatas`
---   - `cmdSugerir`          -> `Api.sugerir`
---   - `cmdJogarSozinho`     -> `Api.jogarSozinho`
---
--- Palavra-sentinela `"zzzzz"` devolve `Err` com as mensagens 422 da #7 para
--- validar a exibição de erros antes da integração HTTP.
-
-
-cmdBuscarCandidatas : List Palpite -> (Result String (List String) -> msg) -> Cmd msg
-cmdBuscarCandidatas historico toMsg =
-    let
-        resultado =
-            if temSentinelaErro historico then
-                Err "Nenhuma palavra corresponde às cores informadas."
-
-            else if List.length historico <= 1 then
-                Ok [ "carro", "jarro", "farro", "parro", "corvo", "cervo" ]
-
-            else
-                Ok [ "carro", "jarro" ]
-    in
-    Task.succeed resultado |> Task.perform toMsg
-
-
-cmdSugerir : List Palpite -> (Result String Sugestao -> msg) -> Cmd msg
-cmdSugerir historico toMsg =
-    let
-        resultado =
-            if temSentinelaErro historico then
-                Err "Nenhuma palavra corresponde às cores informadas."
-
-            else
-                case List.length historico of
-                    0 ->
-                        Ok
-                            { palavra = "serao"
-                            , motivo = "palavra de abertura calculada por minimax (dados fixos)"
-                            }
-
-                    1 ->
-                        Ok
-                            { palavra = "corvo"
-                            , motivo = "restam 6 palavras; com este palpite sobram no máximo 2 (dados fixos)"
-                            }
-
-                    _ ->
-                        Ok
-                            { palavra = "carro"
-                            , motivo = "restam 2 palavras; com este palpite sobra no máximo 1 (dados fixos)"
-                            }
-    in
-    Task.succeed resultado |> Task.perform toMsg
-
-
-cmdJogarSozinho : String -> (Result String (List Palpite) -> msg) -> Cmd msg
-cmdJogarSozinho palavra toMsg =
-    let
-        resultado =
-            if palavra == "zzzzz" then
-                Err "Palavra não encontrada na base."
-
-            else if palavra == "serao" then
-                Ok
-                    [ { palavra = "serao"
-                      , cores = [ Verde, Verde, Verde, Verde, Verde ]
-                      }
-                    ]
-
-            else
-                Ok
-                    [ { palavra = "serao"
-                      , cores = [ Cinza, Cinza, Amarelo, Amarelo, Amarelo ]
-                      }
-                    , { palavra = "barra"
-                      , cores = [ Cinza, Verde, Verde, Verde, Cinza ]
-                      }
-                    , { palavra = palavra
-                      , cores = [ Verde, Verde, Verde, Verde, Verde ]
-                      }
-                    ]
-    in
-    Task.succeed resultado |> Task.perform toMsg
-
-
-temSentinelaErro : List Palpite -> Bool
-temSentinelaErro historico =
-    List.any (\palpite -> palpite.palavra == "zzzzz") historico
