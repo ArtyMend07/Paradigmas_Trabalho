@@ -27,6 +27,7 @@ type Cor
     | Amarelo
     | Cinza
 
+
 ehLetra : Char -> Bool
 ehLetra c =
     c >= 'a' && c <= 'z'
