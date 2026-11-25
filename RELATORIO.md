@@ -7,10 +7,10 @@
 | João Pedro Costa | 190030801 | 16h | @johnaopedro |
 | Lucas Mendonça Arruda | 231035464 | 16h | @lucasarruda9 |
 | Artur Mendonça Arruda | 231037337 | 16h | @ArtyMend07 |
-| Rafael Ferreira Leandro | 211041286 | [14h/16h] | @RafaelCLG0 |
-| Gabriel Fernando de Jesus Silva | 222022162 | [14h/16h] | @MMcLovin |
-| Maria Clara Sena de Lima | 231012281 | [14h/16h] | @mclarasenaa |
-| Lucas Avelar | 200067095 | [14h/16h] | @LucasAvelar2711 |
+| Rafael Ferreira Leandro | 211041286 | 16h | @RafaelCLG0 |
+| Gabriel Fernando de Jesus Silva | 222022162 | 16h | @MMcLovin |
+| Maria Clara Sena de Lima | 231012281 | 16h | @mclarasenaa |
+| Lucas Avelar | 200067095 | 16h | @LucasAvelar2711 |
 
 - **Nome do projeto:** Termo (Prolog + Elm)
 - **Nome do grupo:** Os Prologados
