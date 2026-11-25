@@ -226,7 +226,7 @@ corDaTecla partida tela letra =
         Nothing
 
     else
-        Termo.corDoTeclado (Termo.deHistorico (Caos.palpitesComCores partida)) letra
+        Termo.corDasLetras (Caos.palpitesComCores partida) letra
 
 
 {-| A tecla some se foi limpa e continua cinza. Se a letra ganhar outra cor
