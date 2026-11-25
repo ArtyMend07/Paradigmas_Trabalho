@@ -5,12 +5,15 @@ module Caos exposing
     , Linha
     , Partida
     , Situacao(..)
+    , ajuda
+    , codigo
     , descricao
     , efeitoDeTexto
     , emAndamento
     , linhasRestantes
     , nome
     , palpitesComCores
+    , todos
     )
 
 import Termo exposing (Cor, Palpite)
@@ -93,50 +96,82 @@ palpitesComCores partida =
         partida.linhas
 
 
+todos : List Efeito
+todos =
+    [ CorMentirosa
+    , CoresInvertidas
+    , SoContagem
+    , TempoParado
+    , Escudo
+    , AlarmeFalso
+    , TrocaDePalavra
+    , DicaDeLetra
+    , VoltarNoTempo
+    , Tiroteio
+    , LetrasApagadas
+    , ExplosaoNoTeclado
+    , LimpezaDoTeclado
+    ]
+
+
 efeitoDeTexto : String -> Maybe Efeito
 efeitoDeTexto texto =
-    case texto of
-        "cor_mentirosa" ->
-            Just CorMentirosa
+    List.filter (\efeito -> codigo efeito == texto) todos
+        |> List.head
 
-        "cores_invertidas" ->
-            Just CoresInvertidas
 
-        "so_contagem" ->
-            Just SoContagem
+{-| O nome do efeito no Prolog (`caos.pl`). O Elm também usa como sufixo das
+classes CSS de animação de cada efeito.
+-}
+codigo : Efeito -> String
+codigo efeito =
+    case efeito of
+        CorMentirosa ->
+            "cor_mentirosa"
 
-        "tempo_parado" ->
-            Just TempoParado
+        CoresInvertidas ->
+            "cores_invertidas"
 
-        "escudo" ->
-            Just Escudo
+        SoContagem ->
+            "so_contagem"
 
-        "alarme_falso" ->
-            Just AlarmeFalso
+        TempoParado ->
+            "tempo_parado"
 
-        "troca_de_palavra" ->
-            Just TrocaDePalavra
+        Escudo ->
+            "escudo"
 
-        "dica_de_letra" ->
-            Just DicaDeLetra
+        AlarmeFalso ->
+            "alarme_falso"
 
-        "voltar_no_tempo" ->
-            Just VoltarNoTempo
+        TrocaDePalavra ->
+            "troca_de_palavra"
 
-        "tiroteio" ->
-            Just Tiroteio
+        DicaDeLetra ->
+            "dica_de_letra"
 
-        "letras_apagadas" ->
-            Just LetrasApagadas
+        VoltarNoTempo ->
+            "voltar_no_tempo"
 
-        "explosao_no_teclado" ->
-            Just ExplosaoNoTeclado
+        Tiroteio ->
+            "tiroteio"
 
-        "limpeza_do_teclado" ->
-            Just LimpezaDoTeclado
+        LetrasApagadas ->
+            "letras_apagadas"
 
-        _ ->
-            Nothing
+        ExplosaoNoTeclado ->
+            "explosao_no_teclado"
+
+        LimpezaDoTeclado ->
+            "limpeza_do_teclado"
+
+
+{-| Efeitos que favorecem o jogador. Os outros atrapalham, e o alarme falso
+finge que atrapalha.
+-}
+ajuda : Efeito -> Bool
+ajuda efeito =
+    List.member efeito [ Escudo, DicaDeLetra, VoltarNoTempo ]
 
 
 nome : Efeito -> String
