@@ -89,14 +89,28 @@ ERROS_DO_CAOS = {
 }
 
 
+def _resposta_do_caos(result: dict, variavel: str, predicado: str):
+    # Os predicados do caos sempre deveriam ter sucesso. Se falharem, o dict
+    # vem sem a variável; melhor um erro que diga qual predicado falhou do
+    # que um KeyError.
+    if not result["truth"]:
+        raise RuntimeError(f"{predicado} falhou")
+    return result[variavel]
+
+
 def caos_nova() -> dict:
-    return janus.query_once("api:api_caos_nova(P)")["P"]
+    result = janus.query_once("api:api_caos_nova(P)")
+    return _resposta_do_caos(result, "P", "api_caos_nova/1")
 
 
 def caos_palpite(partida: int, palavra: str) -> dict:
-    result = janus.query_once(
-        "api:api_caos_palpite(Id, W, R)", {"Id": partida, "W": palavra}
-    )["R"]
+    result = _resposta_do_caos(
+        janus.query_once(
+            "api:api_caos_palpite(Id, W, R)", {"Id": partida, "W": palavra}
+        ),
+        "R",
+        "api_caos_palpite/3",
+    )
     # api_caos_palpite/3 devolve o dict da partida ou o átomo do erro.
     if isinstance(result, str):
         raise ERROS_DO_CAOS[result]
