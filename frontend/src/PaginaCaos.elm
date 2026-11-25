@@ -28,6 +28,7 @@ type alias Model =
     , erro : Maybe String
     , enviando : Bool
     , tela : EfeitosNaTela
+    , pedido : Int
     }
 
 
@@ -55,7 +56,7 @@ semEfeitosNaTela =
 
 type Msg
     = NovaPartida
-    | RecebeuPartida (Result String Partida)
+    | RecebeuPartida Int (Result String Partida)
     | TeclaPressionada Tecla
     | Atirou (List ( Int, Int ))
     | Explodiu (List Char)
@@ -68,6 +69,7 @@ inicial =
     , erro = Nothing
     , enviando = False
     , tela = semEfeitosNaTela
+    , pedido = 0
     }
 
 
@@ -83,18 +85,40 @@ aoEntrar model =
 
 iniciarPartida : Model -> ( Model, Cmd Msg )
 iniciarPartida model =
-    ( { model | partida = Carregando, rascunho = "", erro = Nothing, enviando = False, tela = semEfeitosNaTela }
-    , CaosApi.novaPartida RecebeuPartida
+    let
+        pedido =
+            model.pedido + 1
+    in
+    ( { model | partida = Carregando, rascunho = "", erro = Nothing, enviando = False, tela = semEfeitosNaTela, pedido = pedido }
+    , CaosApi.novaPartida (RecebeuPartida pedido)
     )
 
 
+{-| Cada requisição leva o número do pedido. Uma resposta de pedido que já foi
+substituído (por exemplo, um palpite enviado antes de clicar em "Nova
+partida") é descartada.
+-}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    case msg of
+        RecebeuPartida pedido _ ->
+            if pedido == model.pedido then
+                atualizar msg model
+
+            else
+                ( model, Cmd.none )
+
+        _ ->
+            atualizar msg model
+
+
+atualizar : Msg -> Model -> ( Model, Cmd Msg )
+atualizar msg model =
     case msg of
         NovaPartida ->
             iniciarPartida model
 
-        RecebeuPartida (Ok partida) ->
+        RecebeuPartida _ (Ok partida) ->
             let
                 ( tela, cmd ) =
                     atualizarTela partida model.tela
@@ -117,7 +141,7 @@ update msg model =
             in
             ( { model | tela = { tela | explodidas = tela.explodidas ++ letras } }, Cmd.none )
 
-        RecebeuPartida (Err erro) ->
+        RecebeuPartida _ (Err erro) ->
             case model.partida of
                 Chegou _ ->
                     ( { model | erro = Just erro, enviando = False }, Cmd.none )
@@ -255,8 +279,8 @@ tratarTecla tecla partida model =
                 ( { model | erro = Just "A palavra precisa ter 5 letras." }, Cmd.none )
 
             else
-                ( { model | enviando = True, erro = Nothing }
-                , CaosApi.jogar partida.id model.rascunho RecebeuPartida
+                ( { model | enviando = True, erro = Nothing, pedido = model.pedido + 1 }
+                , CaosApi.jogar partida.id model.rascunho (RecebeuPartida (model.pedido + 1))
                 )
 
 
