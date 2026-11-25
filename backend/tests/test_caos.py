@@ -7,7 +7,9 @@ from app.main import NAO_ENCONTRADA, PARTIDA_ENCERRADA, PARTIDA_NAO_ENCONTRADA, 
 
 client = TestClient(app)
 
-PALPITES_ERRADOS = ["termo", "pulha", "sabia", "nuvem", "fosco", "grito", "ninja"]
+PALPITES = ["termo", "pulha", "sabia", "nuvem", "fosco", "carta", "ninja"]
+# Escudo e voltar no tempo devolvem linhas, então a partida pode passar de 6 palpites.
+MAX_RODADAS = 40
 
 
 def nova_partida() -> dict:
@@ -18,6 +20,16 @@ def nova_partida() -> dict:
 
 def jogar(partida: int, palavra: str):
     return client.post("/api/caos/palpite", json={"id": partida, "palavra": palavra})
+
+
+def jogar_ate_o_fim(partida: int) -> dict:
+    for rodada in range(MAX_RODADAS):
+        response = jogar(partida, PALPITES[rodada % len(PALPITES)])
+        assert response.status_code == 200
+        estado = response.json()
+        if estado["situacao"] != "em_andamento":
+            return estado
+    pytest.fail(f"partida não terminou em {MAX_RODADAS} palpites")
 
 
 def test_nova_partida_comeca_vazia():
@@ -37,17 +49,12 @@ def test_palpite_acrescenta_uma_linha():
     assert linhas[0]["palavra"] == "termo"
 
 
-def test_partida_perdida_revela_a_resposta():
-    partida = nova_partida()
-    atual = partida
-    for palavra in PALPITES_ERRADOS:
-        if atual["situacao"] != "em_andamento":
-            break
-        resposta = jogar(partida["id"], palavra)
-        assert resposta.status_code == 200
-        atual = resposta.json()
-    if atual["situacao"] == "perdeu":
-        assert len(atual["resposta"]) == 5
+def test_resposta_so_aparece_quando_a_partida_e_perdida():
+    final = jogar_ate_o_fim(nova_partida()["id"])
+    if final["situacao"] == "perdeu":
+        assert len(final["resposta"]) == 5
+    else:
+        assert final["resposta"] == ""
 
 
 @pytest.mark.parametrize(
@@ -67,11 +74,7 @@ def test_erros_do_palpite(corpo, status, detalhe):
 
 def test_palpite_depois_do_fim_da_partida():
     partida = nova_partida()
-    situacao = "em_andamento"
-    tentativas = 0
-    while situacao == "em_andamento":
-        situacao = jogar(partida["id"], PALPITES_ERRADOS[tentativas % len(PALPITES_ERRADOS)]).json()["situacao"]
-        tentativas += 1
+    jogar_ate_o_fim(partida["id"])
     response = jogar(partida["id"], "termo")
     assert response.status_code == 422
     assert response.json()["detail"] == PARTIDA_ENCERRADA
