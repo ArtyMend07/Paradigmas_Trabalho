@@ -1,8 +1,9 @@
-module Teclado exposing (Tecla(..), teclaFisica, viewTeclado, viewTecladoCom)
+module Teclado exposing (Tecla(..), apertarSemFoco, teclaFisica, viewTeclado, viewTecladoCom)
 
 import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (attribute, class, disabled, type_)
-import Html.Events exposing (onClick)
+import Html.Attributes exposing (attribute, class, disabled, tabindex, type_)
+import Html.Events exposing (preventDefaultOn)
+import Json.Decode as Decode
 import Termo exposing (Cor(..), Jogo)
 
 
@@ -10,6 +11,8 @@ type Tecla
     = Letra Char
     | Enter
     | Apagar
+    | Esquerda
+    | Direita
 
 
 teclaFisica : String -> Maybe Tecla
@@ -20,6 +23,12 @@ teclaFisica chave =
 
         "Backspace" ->
             Just Apagar
+
+        "ArrowLeft" ->
+            Just Esquerda
+
+        "ArrowRight" ->
+            Just Direita
 
         _ ->
             case String.toList (String.toLower chave) of
@@ -68,10 +77,10 @@ viewLetra : (Tecla -> msg) -> Maybe Cor -> Bool -> Char -> Html msg
 viewLetra aoApertar cor aparece letra =
     if aparece then
         button
-            [ type_ "button"
-            , class (classesDaTecla cor)
-            , onClick (aoApertar (Letra letra))
-            ]
+            (type_ "button"
+                :: class (classesDaTecla cor)
+                :: apertarSemFoco (aoApertar (Letra letra))
+            )
             [ text (String.fromChar (Char.toUpper letra)) ]
 
     else
@@ -87,12 +96,25 @@ viewLetra aoApertar cor aparece letra =
 viewEspecial : (Tecla -> msg) -> Tecla -> String -> String -> Html msg
 viewEspecial aoApertar tecla rotulo descricao =
     button
-        [ type_ "button"
-        , class "tecla tecla--larga"
-        , attribute "aria-label" descricao
-        , onClick (aoApertar tecla)
-        ]
+        ([ type_ "button"
+         , class "tecla tecla--larga"
+         , attribute "aria-label" descricao
+         ]
+            ++ apertarSemFoco (aoApertar tecla)
+        )
         [ text rotulo ]
+
+
+{-| A tecla age no `mousedown` e cancela o foco. Sem isso o botão clicado
+fica focado, ganha a borda de foco quando o jogador volta ao teclado físico e o
+Enter físico apertaria o botão de novo. As teclas saem da ordem do Tab porque o
+teclado físico já faz o mesmo papel.
+-}
+apertarSemFoco : msg -> List (Html.Attribute msg)
+apertarSemFoco msg =
+    [ preventDefaultOn "mousedown" (Decode.succeed ( msg, True ))
+    , tabindex -1
+    ]
 
 
 classesDaTecla : Maybe Cor -> String

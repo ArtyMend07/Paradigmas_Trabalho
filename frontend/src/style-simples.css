@@ -80,7 +80,7 @@
   }
 
   .area-jogo {
-    @apply flex flex-col items-center gap-5;
+    @apply flex flex-col items-center gap-6;
   }
 
   .side-panel {
@@ -124,14 +124,23 @@
 
   .grade {
     @apply mx-auto flex w-fit flex-col gap-2;
+    perspective: 800px;
   }
 
   .linha {
     @apply grid grid-cols-5 gap-2;
   }
 
+  /* Posição da casa na linha, usada para escalonar as animações. */
+  .linha > :nth-child(2) { --i: 1; }
+  .linha > :nth-child(3) { --i: 2; }
+  .linha > :nth-child(4) { --i: 3; }
+  .linha > :nth-child(5) { --i: 4; }
+
   .casa {
-    @apply flex h-12 w-12 items-center justify-center rounded-lg border-2 text-2xl font-bold uppercase select-none sm:h-14 sm:w-14 sm:text-3xl;
+    @apply relative flex h-12 w-12 items-center justify-center rounded-lg border-2 text-2xl font-bold uppercase select-none sm:h-14 sm:w-14 sm:text-3xl;
+    /* --linha só existe no modo automático, que revela uma linha por vez. */
+    --atraso-virar: calc(var(--linha, 0) * 700ms + var(--i, 0) * 130ms);
   }
 
   .casa--vazia {
@@ -140,15 +149,59 @@
 
   .casa--rascunho {
     @apply cursor-pointer border-base-content/40 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+    animation: estourar 140ms ease-out;
   }
 
+  /* As cores aparecem no meio da virada, como no jogo de papel. */
   .casa--confirmada {
     @apply border-transparent;
+    animation: virar 520ms ease-in-out var(--atraso-virar) both;
   }
 
   .casa--verde   { @apply border-success bg-success text-success-content; }
   .casa--amarela { @apply border-warning bg-warning text-warning-content; }
   .casa--cinza   { @apply border-neutral bg-neutral text-neutral-content; }
+
+  .linha--vitoria > .casa {
+    animation:
+      virar 520ms ease-in-out var(--atraso-virar) both,
+      pular 520ms ease-in-out calc(var(--atraso-virar) + 900ms) both;
+  }
+
+  .linha--tremor-a { animation: tremer-a 420ms ease-in-out; }
+  .linha--tremor-b { animation: tremer-b 420ms ease-in-out; }
+
+
+  /* ---------- Linha em edição do modo caos ---------- */
+
+  .casa--edicao {
+    @apply cursor-pointer border-base-300 bg-base-100 transition duration-150 hover:-translate-y-0.5 hover:border-primary/60 focus-visible:outline-2 focus-visible:outline-primary;
+  }
+
+  .casa--preenchida {
+    @apply border-base-content/50;
+    animation: estourar 140ms ease-out;
+  }
+
+  .casa--cursor {
+    @apply border-primary shadow-[0_0_0_3px] shadow-primary/25;
+  }
+
+  .casa--cursor::after {
+    content: "";
+    @apply absolute inset-x-3 bottom-1.5 h-[3px] rounded-full bg-primary;
+    animation: piscar 1s steps(2, jump-none) infinite;
+  }
+
+  .linha--amaldicoada > .casa--edicao {
+    @apply border-error/70;
+    animation: aura-ruim 1.6s ease-in-out infinite;
+  }
+
+  .linha--protegida > .casa--edicao {
+    @apply border-info/70;
+    animation: aura-boa 1.6s ease-in-out infinite;
+  }
 
 
   /* ---------- Painel do modo assistente ---------- */
@@ -219,40 +272,86 @@
     @apply flex justify-center gap-1;
   }
 
+  /* A cor chega depois da virada das casas, para não entregar o resultado
+     antes da grade. */
   .tecla {
-    @apply btn h-12 min-w-0 flex-1 px-0 font-bold sm:h-14;
+    @apply btn h-12 min-w-0 flex-1 px-0 font-bold shadow-none outline-none sm:h-14;
+    transition:
+      transform 80ms ease-out,
+      background-color 250ms ease 650ms,
+      border-color 250ms ease 650ms,
+      color 250ms ease 650ms;
   }
+
+  .tecla:active { transform: scale(0.92); }
 
   .tecla--larga   { @apply flex-[1.5] text-xs; }
 
-  .tecla--verde   { @apply btn-success; }
-  .tecla--amarela { @apply btn-warning; }
-  .tecla--cinza   { @apply btn-neutral opacity-60; }
+  .tecla--verde   { @apply border-success bg-success text-success-content; }
+  .tecla--amarela { @apply border-warning bg-warning text-warning-content; }
+  .tecla--cinza   { @apply border-neutral bg-neutral text-neutral-content opacity-70; }
 
 
   /* ---------- Modo caos (#14) ---------- */
+
+  .caos-jogo {
+    @apply relative flex flex-col items-center gap-6;
+  }
+
+  .caos-jogo--abalo-a { animation: abalo-a 520ms ease-out; }
+  .caos-jogo--abalo-b { animation: abalo-b 520ms ease-out; }
 
   .linha--caos {
     @apply grid-cols-[repeat(5,auto)_auto] items-center;
   }
 
   .casa--sem-cor { @apply border-base-content/40 bg-base-200 text-base-content; }
-  .casa--oculta  { @apply border-dashed border-base-content/40 bg-base-100 text-base-content/60; }
+
+  /* Tempo parado: a linha fica congelada até o palpite seguinte. */
+  .casa--oculta {
+    @apply border-info/50 text-base-content/70;
+    background: linear-gradient(115deg, color-mix(in oklab, var(--color-info) 18%, var(--color-base-100)) 30%, color-mix(in oklab, var(--color-info) 40%, var(--color-base-100)) 50%, color-mix(in oklab, var(--color-info) 18%, var(--color-base-100)) 70%) 0 0 / 300% 100%;
+    animation:
+      virar-oculta 520ms ease-in-out var(--atraso-virar) both,
+      gelo 2.4s linear infinite;
+  }
+
+  /* Explosão no teclado: a letra também perde a cor na grade (#19). */
+  .casa--queimada {
+    @apply border-[#f97316]/60 text-base-content/60;
+    background: radial-gradient(circle at 35% 40%, #0008 0 25%, transparent 60%), radial-gradient(circle at 70% 70%, #0006 0 20%, transparent 55%), var(--color-base-300);
+    animation: queimar 700ms ease-out var(--atraso-virar) both;
+  }
 
   .linha-contagem {
     @apply badge badge-outline whitespace-nowrap font-mono;
+    animation: estourar 300ms ease-out 400ms both;
   }
 
-  .caos-efeito {
-    @apply flex-col items-start gap-0.5;
+  /* Cada efeito de linha ganha uma animação depois que as cores aparecem. */
+  .linha--efeito-cores_invertidas > .casa--confirmada {
+    animation:
+      virar 520ms ease-in-out var(--atraso-virar) both,
+      inverter 900ms steps(6, end) calc(var(--atraso-virar) + 600ms);
   }
 
-  .caos-efeito-nome {
-    @apply font-bold;
+  .linha--efeito-cor_mentirosa > .casa--confirmada {
+    animation:
+      virar 520ms ease-in-out var(--atraso-virar) both,
+      falha 700ms steps(7, end) calc(var(--atraso-virar) + 600ms);
   }
 
-  /* Limpeza do teclado: a tecla some, mas o lugar dela continua ocupado. */
-  .tecla--sumida { @apply invisible; }
+  .linha--efeito-escudo > .casa--confirmada {
+    animation:
+      virar 520ms ease-in-out var(--atraso-virar) both,
+      aura-boa 900ms ease-out calc(var(--atraso-virar) + 600ms) 2;
+  }
+
+  .linha--efeito-alarme_falso > .casa--confirmada {
+    animation:
+      virar 520ms ease-in-out var(--atraso-virar) both,
+      tremer-a 420ms ease-in-out calc(var(--atraso-virar) + 600ms);
+  }
 
   /* Tiroteio: buraco escuro no meio da casa. */
   .casa--furada {
@@ -261,12 +360,335 @@
     animation: caos-impacto 0.3s ease-out;
   }
 
-  .caos-jogo { @apply relative; }
+  /* Limpeza do teclado: a tecla some, mas o lugar dela continua ocupado. */
+  .tecla--sumida { @apply invisible; }
 
   .caos-arma {
     @apply pointer-events-none absolute right-0 top-1/4 z-10 text-6xl;
     animation: caos-tiros 1.8s ease-in-out forwards;
   }
+
+
+  /* ---------- Carimbo do efeito por cima da grade ---------- */
+
+  .caos-impactos {
+    @apply pointer-events-none absolute inset-0 z-20;
+  }
+
+  .caos-impacto {
+    @apply absolute inset-0 flex items-center justify-center overflow-visible;
+    --cor-impacto: var(--color-error);
+    color: var(--cor-impacto);
+  }
+
+  .caos-impacto::before {
+    content: "";
+    @apply absolute -inset-8 rounded-[2rem];
+    background: radial-gradient(circle at 50% 45%, color-mix(in oklab, currentColor 35%, transparent), transparent 65%);
+    animation: clarao 900ms ease-out forwards;
+  }
+
+  .caos-impacto-onda {
+    @apply absolute h-24 w-24 rounded-full border-4 border-current;
+    animation: onda 900ms ease-out forwards;
+  }
+
+  .caos-impacto-nome {
+    @apply relative rounded-xl px-5 py-2 text-center text-2xl font-black uppercase tracking-wide shadow-2xl sm:text-3xl;
+    background: var(--cor-impacto);
+    color: var(--color-base-100);
+    animation: carimbar 1.8s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+  }
+
+  .caos-impacto--escudo,
+  .caos-impacto--voltar_no_tempo { --cor-impacto: var(--color-info); }
+  .caos-impacto--dica_de_letra   { --cor-impacto: var(--color-success); }
+  .caos-impacto--troca_de_palavra,
+  .caos-impacto--letras_apagadas,
+  .caos-impacto--limpeza_do_teclado { --cor-impacto: var(--color-warning); }
+
+  .caos-impacto--dica_de_letra .caos-impacto-nome {
+    @apply flex h-24 w-24 items-center justify-center rounded-full p-0 text-6xl;
+  }
+
+  .caos-impacto--troca_de_palavra .caos-impacto-nome {
+    animation: carimbar-girando 1.8s ease-out forwards;
+  }
+
+  .caos-impacto--voltar_no_tempo .caos-impacto-nome {
+    animation: rebobinar 1.8s ease-out forwards;
+  }
+
+  /* A explosão acontece em cima do teclado, que é onde ela estraga as cores. */
+  .caos-impacto--explosao_no_teclado {
+    @apply items-end pb-16;
+    --cor-impacto: #f97316;
+  }
+
+  .caos-impacto--explosao_no_teclado::before {
+    background: radial-gradient(circle at 50% 80%, #fde047cc 0 10%, #f97316aa 25%, #dc262655 45%, transparent 70%);
+    animation: clarao 1.1s ease-out forwards;
+  }
+
+  .caos-impacto--explosao_no_teclado .caos-impacto-onda {
+    @apply border-8;
+    animation: onda 700ms ease-out forwards;
+  }
+
+  /* Faixa que varre a área, para as letras apagadas e a limpeza do teclado. */
+  .caos-impacto--letras_apagadas::after,
+  .caos-impacto--limpeza_do_teclado::after {
+    content: "";
+    @apply absolute inset-y-0 w-1/3;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, currentColor 45%, transparent), transparent);
+    animation: varrer 900ms ease-in-out forwards;
+  }
+
+
+  /* ---------- Painel lateral do modo caos ---------- */
+
+  .caos-painel {
+    @apply flex flex-col gap-3;
+  }
+
+  .caos-vidas {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .caos-vidas-bolinhas {
+    @apply flex flex-wrap justify-end gap-1.5;
+  }
+
+  .caos-vida {
+    @apply h-3 w-3 rounded-full bg-primary shadow-sm transition duration-500;
+  }
+
+  .caos-vida--usada {
+    @apply scale-75 bg-base-300 shadow-none;
+  }
+
+  .caos-pendente {
+    @apply flex flex-col rounded-box border-2 border-dashed border-error/60 bg-error/10 px-3 py-2;
+    animation: entrar 380ms cubic-bezier(0.2, 1.4, 0.4, 1) both, pulsar-borda 1.6s ease-in-out infinite;
+  }
+
+  .caos-pendente--ajuda {
+    @apply border-info/60 bg-info/10;
+  }
+
+  .caos-pendente-rotulo { @apply text-xs font-semibold uppercase tracking-wide opacity-70; }
+  .caos-pendente-nome   { @apply text-lg font-bold; }
+
+  /* Os avisos entram pela lateral, mostram quanto tempo falta e saem sozinhos.
+     No celular o painel fica embaixo da grade, então eles flutuam no topo. */
+  .caos-avisos {
+    @apply pointer-events-none fixed inset-x-3 top-3 z-30 flex flex-col gap-2 lg:static lg:inset-auto lg:z-auto;
+  }
+
+  .caos-aviso {
+    @apply relative overflow-hidden rounded-box border-l-4 bg-base-100/95 px-4 py-3 shadow-lg backdrop-blur;
+    border-color: var(--tom);
+    animation:
+      entrar 380ms cubic-bezier(0.2, 1.4, 0.4, 1) both,
+      sair 350ms ease-in calc(var(--duracao) - 350ms) forwards;
+  }
+
+  .caos-aviso--ajuda     { --tom: var(--color-success); }
+  .caos-aviso--atrapalha { --tom: var(--color-error); }
+  .caos-aviso--anuncio   { --tom: var(--color-warning); }
+
+  .caos-aviso-titulo { @apply text-sm font-black uppercase tracking-wide; color: var(--tom); }
+  .caos-aviso-texto  { @apply text-sm opacity-80; }
+
+  .caos-aviso-tempo {
+    @apply absolute bottom-0 left-0 h-1 w-full origin-left;
+    background: var(--tom);
+    animation: esvaziar var(--duracao) linear forwards;
+  }
+
+
+  /* ---------- Confete da vitória ---------- */
+
+  .festa {
+    @apply pointer-events-none fixed inset-0 z-40 overflow-hidden;
+  }
+
+  .festa-peca {
+    @apply absolute -top-6 h-4 w-2.5 rounded-sm;
+    left: var(--x);
+    background: hsl(var(--matiz) 85% 60%);
+    animation: cair var(--queda) cubic-bezier(0.3, 0.6, 0.6, 1) var(--atraso) both;
+  }
+}
+
+
+/* ---------- Animações ---------- */
+
+@keyframes virar {
+  0%, 49% {
+    transform: rotateX(0);
+    background: var(--color-base-100);
+    border-color: var(--color-base-300);
+    color: var(--color-base-content);
+  }
+  49% { transform: rotateX(90deg); }
+  50% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+
+/* Igual a `virar`, com outro nome para rodar de novo quando a casa muda de
+   oculta para colorida. */
+@keyframes virar-oculta {
+  0%, 49% { transform: rotateX(0); }
+  49% { transform: rotateX(90deg); }
+  50% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+
+@keyframes estourar {
+  0%   { transform: scale(0.85); }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pular {
+  0%, 100% { transform: translateY(0); }
+  40%      { transform: translateY(-35%) scale(1.08); }
+  70%      { transform: translateY(6%); }
+}
+
+@keyframes tremer-a {
+  0%, 100% { transform: translateX(0); }
+  15%, 55% { transform: translateX(-9px); }
+  35%, 75% { transform: translateX(9px); }
+  90%      { transform: translateX(-3px); }
+}
+
+@keyframes tremer-b {
+  0%, 100% { transform: translateX(0); }
+  15%, 55% { transform: translateX(-9px); }
+  35%, 75% { transform: translateX(9px); }
+  90%      { transform: translateX(-3px); }
+}
+
+@keyframes abalo-a {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20%      { transform: translate(-6px, 3px) rotate(-1deg); }
+  40%      { transform: translate(6px, -3px) rotate(1deg); }
+  60%      { transform: translate(-4px, 2px) rotate(-0.5deg); }
+  80%      { transform: translate(3px, -1px); }
+}
+
+@keyframes abalo-b {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20%      { transform: translate(-6px, 3px) rotate(-1deg); }
+  40%      { transform: translate(6px, -3px) rotate(1deg); }
+  60%      { transform: translate(-4px, 2px) rotate(-0.5deg); }
+  80%      { transform: translate(3px, -1px); }
+}
+
+@keyframes piscar {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes aura-ruim {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-error) 0%, transparent); }
+  50%      { box-shadow: 0 0 14px 2px color-mix(in oklab, var(--color-error) 55%, transparent); }
+}
+
+@keyframes aura-boa {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-info) 0%, transparent); }
+  50%      { box-shadow: 0 0 14px 2px color-mix(in oklab, var(--color-info) 55%, transparent); }
+}
+
+@keyframes pulsar-borda {
+  0%, 100% { border-color: color-mix(in oklab, currentColor 25%, transparent); }
+  50%      { border-color: color-mix(in oklab, currentColor 70%, transparent); }
+}
+
+@keyframes gelo {
+  from { background-position: 100% 0; }
+  to   { background-position: -200% 0; }
+}
+
+@keyframes queimar {
+  0%   { background: #fde047; transform: scale(1.15); }
+  30%  { background: #f97316; }
+  100% { transform: scale(1); }
+}
+
+@keyframes inverter {
+  0%, 100% { filter: none; }
+  20%, 60% { filter: invert(1) hue-rotate(180deg); }
+  40%, 80% { filter: none; }
+}
+
+@keyframes falha {
+  0%, 100% { transform: translate(0); filter: none; }
+  15% { transform: translate(-3px, 1px) skewX(-8deg); filter: hue-rotate(90deg); }
+  30% { transform: translate(3px, -1px); filter: hue-rotate(-90deg) saturate(2); }
+  45% { transform: translate(-2px, 0) skewX(6deg); }
+  60% { transform: translate(2px, 1px); filter: hue-rotate(45deg); }
+}
+
+@keyframes clarao {
+  0%   { opacity: 0; transform: scale(0.6); }
+  20%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+@keyframes onda {
+  0%   { opacity: 0.9; transform: scale(0.2); }
+  100% { opacity: 0; transform: scale(6); }
+}
+
+@keyframes carimbar {
+  0%   { opacity: 0; transform: scale(3) rotate(-14deg); }
+  15%  { opacity: 1; transform: scale(0.92) rotate(-6deg); }
+  22%  { transform: scale(1) rotate(-6deg); }
+  80%  { opacity: 1; transform: scale(1) rotate(-6deg); }
+  100% { opacity: 0; transform: scale(1.15) rotate(-6deg); }
+}
+
+@keyframes carimbar-girando {
+  0%   { opacity: 0; transform: rotateY(0) scale(0.5); }
+  30%  { opacity: 1; transform: rotateY(720deg) scale(1); }
+  80%  { opacity: 1; transform: rotateY(720deg) scale(1); }
+  100% { opacity: 0; transform: rotateY(720deg) scale(0.8); }
+}
+
+@keyframes rebobinar {
+  0%   { opacity: 0; transform: translateX(60%) skewX(-20deg); }
+  25%  { opacity: 1; transform: translateX(-6%) skewX(10deg); }
+  35%  { transform: translateX(0) skewX(0); }
+  80%  { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(-60%) skewX(20deg); }
+}
+
+@keyframes varrer {
+  from { left: -40%; }
+  to   { left: 110%; }
+}
+
+@keyframes entrar {
+  from { opacity: 0; transform: translateX(110%) scale(0.9); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes sair {
+  to { opacity: 0; transform: translateX(110%); }
+}
+
+@keyframes esvaziar {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+@keyframes cair {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0); }
+  50%  { transform: translate(30px, 55vh) rotate(calc(var(--giro) / 2)); }
+  100% { opacity: 0.8; transform: translate(-20px, 110vh) rotate(var(--giro)); }
 }
 
 /* A arma entra pela direita, dá três tiros (o coice gira a arma) e sai. */
@@ -288,7 +710,12 @@
   to   { transform: scale(1); }
 }
 
+/* Quem pediu menos movimento no sistema vê só as cores, sem animação. Os
+   avisos continuam aparecendo e o Elm os remove no tempo certo. */
 @media (prefers-reduced-motion: reduce) {
-  .caos-arma { animation: none; opacity: 0; }
-  .casa--furada { animation: none; }
+  *, ::before, ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .festa, .caos-impactos, .caos-arma { display: none; }
 }

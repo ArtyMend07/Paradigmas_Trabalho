@@ -13,21 +13,35 @@ module PaginaCaos exposing
 import Browser.Events
 import Caos exposing (Efeito, Evento(..), Exibicao(..), Linha, Partida, Situacao(..))
 import CaosApi
+import Festa
 import Html exposing (Html, button, div, kbd, p, span, text)
-import Html.Attributes exposing (attribute, class, disabled, type_)
+import Html.Attributes exposing (attribute, class, classList, disabled, type_)
 import Html.Events exposing (onClick)
+import Html.Keyed
 import Json.Decode as Decode exposing (Decoder)
+import Process
 import Random
+import Rascunho exposing (Rascunho)
+import Task
 import Teclado exposing (Tecla(..))
 import Termo exposing (Cor(..), Remoto(..))
 
 
+{-| `tremor` conta os palpites recusados seguidos e `rodada` conta as respostas
+do servidor. A view alterna entre duas classes CSS conforme a paridade desses
+contadores, porque trocar o nome da animação é o que faz o navegador rodá-la de
+novo.
+-}
 type alias Model =
     { partida : Remoto Partida
-    , rascunho : String
+    , rascunho : Rascunho
     , erro : Maybe String
     , enviando : Bool
     , tela : EfeitosNaTela
+    , tremor : Int
+    , rodada : Int
+    , avisos : List Aviso
+    , proximoAviso : Int
     }
 
 
@@ -48,6 +62,32 @@ type alias EfeitosNaTela =
     }
 
 
+{-| Aviso lateral de efeito, que some sozinho depois de `duracaoDoAviso`.
+-}
+type alias Aviso =
+    { id : Int
+    , titulo : String
+    , texto : String
+    , tom : Tom
+    }
+
+
+type Tom
+    = Ajuda
+    | Atrapalha
+    | Anuncio
+
+
+duracaoDoAviso : Float
+duracaoDoAviso =
+    6000
+
+
+maximoDeAvisos : Int
+maximoDeAvisos =
+    4
+
+
 semEfeitosNaTela : EfeitosNaTela
 semEfeitosNaTela =
     { furos = [], apagada = Nothing, explodidas = [], limpas = [] }
@@ -59,15 +99,21 @@ type Msg
     | TeclaPressionada Tecla
     | Atirou (List ( Int, Int ))
     | Explodiu (List Char)
+    | CasaEscolhida Int
+    | AvisoExpirou Int
 
 
 inicial : Model
 inicial =
     { partida = NaoPedido
-    , rascunho = ""
+    , rascunho = Rascunho.vazio
     , erro = Nothing
     , enviando = False
     , tela = semEfeitosNaTela
+    , tremor = 0
+    , rodada = 0
+    , avisos = []
+    , proximoAviso = 0
     }
 
 
@@ -83,7 +129,15 @@ aoEntrar model =
 
 iniciarPartida : Model -> ( Model, Cmd Msg )
 iniciarPartida model =
-    ( { model | partida = Carregando, rascunho = "", erro = Nothing, enviando = False, tela = semEfeitosNaTela }
+    ( { model
+        | partida = Carregando
+        , rascunho = Rascunho.vazio
+        , erro = Nothing
+        , enviando = False
+        , tela = semEfeitosNaTela
+        , tremor = 0
+        , avisos = []
+      }
     , CaosApi.novaPartida RecebeuPartida
     )
 
@@ -96,11 +150,22 @@ update msg model =
 
         RecebeuPartida (Ok partida) ->
             let
-                ( tela, cmd ) =
+                ( tela, cmdTela ) =
                     atualizarTela partida model.tela
+
+                ( comAvisos, cmdAvisos ) =
+                    adicionarAvisos (avisosDaResposta model.partida partida) model
             in
-            ( { model | partida = Chegou partida, rascunho = "", erro = Nothing, enviando = False, tela = tela }
-            , cmd
+            ( { comAvisos
+                | partida = Chegou partida
+                , rascunho = Rascunho.vazio
+                , erro = Nothing
+                , enviando = False
+                , tela = tela
+                , tremor = 0
+                , rodada = model.rodada + 1
+              }
+            , Cmd.batch [ cmdTela, cmdAvisos ]
             )
 
         Atirou furos ->
@@ -120,7 +185,7 @@ update msg model =
         RecebeuPartida (Err erro) ->
             case model.partida of
                 Chegou _ ->
-                    ( { model | erro = Just erro, enviando = False }, Cmd.none )
+                    ( { model | erro = Just erro, enviando = False, tremor = model.tremor + 1 }, Cmd.none )
 
                 _ ->
                     ( { model | partida = Falhou erro, enviando = False }, Cmd.none )
@@ -136,6 +201,101 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+        CasaEscolhida posicao ->
+            if emAndamento model then
+                ( { model | rascunho = Rascunho.posicionar posicao model.rascunho }, Cmd.none )
+
+            else
+                ( model, Cmd.none )
+
+        AvisoExpirou id ->
+            ( { model | avisos = List.filter (\aviso -> aviso.id /= id) model.avisos }, Cmd.none )
+
+
+emAndamento : Model -> Bool
+emAndamento model =
+    case model.partida of
+        Chegou partida ->
+            Caos.emAndamento partida
+
+        _ ->
+            False
+
+
+{-| O efeito que aconteceu agora e o efeito anunciado para o próximo palpite.
+O anúncio só vira aviso quando é novo, para não repetir a cada resposta.
+-}
+avisosDaResposta : Remoto Partida -> Partida -> List ( String, String, Tom )
+avisosDaResposta anterior partida =
+    let
+        jaAnunciado =
+            case anterior of
+                Chegou antes ->
+                    antes.proximo /= Nothing && antes.proximo == partida.proximo
+
+                _ ->
+                    False
+
+        anuncio =
+            if jaAnunciado then
+                Nothing
+
+            else
+                Maybe.map (\efeito -> ( "No próximo palpite: " ++ Caos.nome efeito, Caos.descricao efeito, Anuncio )) partida.proximo
+    in
+    List.filterMap identity [ Maybe.map avisoDoEvento partida.evento, anuncio ]
+
+
+avisoDoEvento : Evento -> ( String, String, Tom )
+avisoDoEvento evento =
+    case evento of
+        Instantaneo efeito ->
+            ( Caos.nome efeito, Caos.descricao efeito, tomDoEfeito efeito )
+
+        LetraRevelada dica ->
+            ( Caos.nome Caos.DicaDeLetra, textoDaDica dica, Ajuda )
+
+
+textoDaDica : { letra : Char, presente : Bool } -> String
+textoDaDica dica =
+    let
+        onde =
+            if dica.presente then
+                " está na palavra."
+
+            else
+                " não está na palavra."
+    in
+    "A letra " ++ String.toUpper (String.fromChar dica.letra) ++ onde
+
+
+tomDoEfeito : Efeito -> Tom
+tomDoEfeito efeito =
+    if Caos.ajuda efeito then
+        Ajuda
+
+    else
+        Atrapalha
+
+
+adicionarAvisos : List ( String, String, Tom ) -> Model -> ( Model, Cmd Msg )
+adicionarAvisos novos model =
+    let
+        criados =
+            List.indexedMap
+                (\i ( titulo, texto, tom ) -> { id = model.proximoAviso + i, titulo = titulo, texto = texto, tom = tom })
+                novos
+
+        expirar aviso =
+            Process.sleep duracaoDoAviso |> Task.perform (\_ -> AvisoExpirou aviso.id)
+    in
+    ( { model
+        | avisos = List.take maximoDeAvisos (List.reverse criados ++ model.avisos)
+        , proximoAviso = model.proximoAviso + List.length criados
+      }
+    , Cmd.batch (List.map expirar criados)
+    )
 
 
 {-| Roda a cada resposta do servidor: primeiro acaba o que durava só até
@@ -241,23 +401,31 @@ tratarTecla : Tecla -> Partida -> Model -> ( Model, Cmd Msg )
 tratarTecla tecla partida model =
     case tecla of
         Letra letra ->
-            if String.length model.rascunho < Termo.tamanhoPalavra && Char.isLower letra then
-                ( { model | rascunho = model.rascunho ++ String.fromChar letra, erro = Nothing }, Cmd.none )
-
-            else
-                ( model, Cmd.none )
+            ( editar (Rascunho.digitar letra) model, Cmd.none )
 
         Apagar ->
-            ( { model | rascunho = String.dropRight 1 model.rascunho, erro = Nothing }, Cmd.none )
+            ( editar Rascunho.apagar model, Cmd.none )
+
+        Esquerda ->
+            ( editar Rascunho.recuar model, Cmd.none )
+
+        Direita ->
+            ( editar Rascunho.avancar model, Cmd.none )
 
         Enter ->
-            if String.length model.rascunho < Termo.tamanhoPalavra then
-                ( { model | erro = Just "A palavra precisa ter 5 letras." }, Cmd.none )
+            case Rascunho.palavra model.rascunho of
+                Nothing ->
+                    ( { model | erro = Just "A palavra precisa ter 5 letras.", tremor = model.tremor + 1 }, Cmd.none )
 
-            else
-                ( { model | enviando = True, erro = Nothing }
-                , CaosApi.jogar partida.id model.rascunho RecebeuPartida
-                )
+                Just palavra ->
+                    ( { model | enviando = True, erro = Nothing }
+                    , CaosApi.jogar partida.id palavra RecebeuPartida
+                    )
+
+
+editar : (Rascunho -> Rascunho) -> Model -> Model
+editar mudanca model =
+    { model | rascunho = mudanca model.rascunho, erro = Nothing, tremor = 0 }
 
 
 subscriptions : Sub Msg
@@ -292,15 +460,41 @@ viewJogo : Model -> Html Msg
 viewJogo model =
     case model.partida of
         Chegou partida ->
-            div [ class "caos-jogo" ]
+            div [ classList (( "caos-jogo", True ) :: alternar "caos-jogo--abalo" model.rodada (abala partida)) ]
                 [ viewArma model.tela
+                , viewImpacto model.rodada partida.evento
                 , div [ class "grade", attribute "role" "grid", attribute "aria-label" "Grade do modo caos" ]
-                    (linhasDaGrade model.tela model.rascunho partida)
+                    (linhasDaGrade model partida)
                 , Teclado.viewTecladoCom TeclaPressionada (corDaTecla partida model.tela) (teclaAparece partida model.tela)
+                , if partida.situacao == Venceu then
+                    Festa.confete
+
+                  else
+                    text ""
                 ]
 
         _ ->
             div [ class "grade" ] []
+
+
+{-| Classe `<base>-a` ou `<base>-b` conforme a paridade do contador, para a
+animação rodar de novo a cada vez (ver `Model`).
+-}
+alternar : String -> Int -> Bool -> List ( String, Bool )
+alternar base contador ativo =
+    [ ( base ++ "-a", ativo && modBy 2 contador == 0 )
+    , ( base ++ "-b", ativo && modBy 2 contador == 1 )
+    ]
+
+
+abala : Partida -> Bool
+abala partida =
+    case partida.evento of
+        Just (Instantaneo efeito) ->
+            not (Caos.ajuda efeito)
+
+        _ ->
+            False
 
 
 {-| A arma entra, atira e sai pela animação do CSS, que roda uma vez quando o
@@ -315,15 +509,47 @@ viewArma tela =
         div [ class "caos-arma", attribute "aria-hidden" "true" ] [ text "🔫" ]
 
 
-linhasDaGrade : EfeitosNaTela -> String -> Partida -> List (Html Msg)
-linhasDaGrade tela rascunho partida =
+{-| Carimbo com o nome do efeito por cima da grade. A chave muda a cada
+resposta, então o elemento é recriado e a animação de entrada roda de novo.
+-}
+viewImpacto : Int -> Maybe Evento -> Html Msg
+viewImpacto rodada evento =
+    Html.Keyed.node "div"
+        [ class "caos-impactos", attribute "aria-hidden" "true" ]
+        (case evento of
+            Just (Instantaneo efeito) ->
+                [ ( String.fromInt rodada, carimbo (Caos.codigo efeito) (Caos.nome efeito) ) ]
+
+            Just (LetraRevelada dica) ->
+                [ ( String.fromInt rodada, carimbo (Caos.codigo Caos.DicaDeLetra) (String.toUpper (String.fromChar dica.letra)) ) ]
+
+            Nothing ->
+                []
+        )
+
+
+carimbo : String -> String -> Html Msg
+carimbo codigo rotulo =
+    div [ class ("caos-impacto caos-impacto--" ++ codigo) ]
+        [ span [ class "caos-impacto-onda" ] []
+        , span [ class "caos-impacto-nome" ] [ text rotulo ]
+        ]
+
+
+linhasDaGrade : Model -> Partida -> List (Html Msg)
+linhasDaGrade model partida =
     let
+        ultima =
+            List.length partida.linhas - 1
+
         jogadas =
-            List.indexedMap (viewLinha tela) partida.linhas
+            List.indexedMap
+                (\numero linha -> viewLinha model.tela (partida.situacao == Venceu && numero == ultima) numero linha)
+                partida.linhas
 
         atual =
             if Caos.emAndamento partida then
-                [ viewRascunho rascunho ]
+                [ viewRascunho model partida.proximo ]
 
             else
                 []
@@ -334,35 +560,62 @@ linhasDaGrade tela rascunho partida =
     jogadas ++ atual ++ vazias
 
 
-viewLinha : EfeitosNaTela -> Int -> Linha -> Html Msg
-viewLinha tela numero linha =
+viewLinha : EfeitosNaTela -> Bool -> Int -> Linha -> Html Msg
+viewLinha tela vitoria numero linha =
     let
-        letras =
-            if Maybe.map .linha tela.apagada == Just numero then
-                List.repeat Termo.tamanhoPalavra ""
-
-            else
-                List.map (Char.toUpper >> String.fromChar) (String.toList linha.palavra)
+        apagada =
+            Maybe.map .linha tela.apagada == Just numero
 
         casas classeDe =
-            List.indexedMap (\posicao letra -> viewCasa (List.member ( numero, posicao ) tela.furos) (classeDe posicao) letra) letras
+            List.indexedMap
+                (\posicao letra ->
+                    viewCasa (List.member ( numero, posicao ) tela.furos)
+                        (classeDe posicao letra)
+                        (if apagada then
+                            ""
+
+                         else
+                            String.fromChar (Char.toUpper letra)
+                        )
+                )
+                (String.toList linha.palavra)
+
+        classes extra =
+            classList
+                (( "linha", True )
+                    :: ( extra, True )
+                    :: ( "linha--vitoria", vitoria )
+                    :: List.map (\efeito -> ( "linha--efeito-" ++ Caos.codigo efeito, True )) (List.filterMap identity [ linha.efeito ])
+                )
     in
     case linha.exibicao of
         Cores cores ->
-            div [ class "linha", attribute "role" "row" ]
-                (casas (\posicao -> List.drop posicao cores |> List.head |> Maybe.map classeDaCor |> Maybe.withDefault ""))
+            div [ classes "linha--cores", attribute "role" "row" ]
+                (casas (\posicao letra -> classeDaCasa tela letra (List.head (List.drop posicao cores))))
 
         Contagem contagem ->
-            div [ class "linha linha--caos", attribute "role" "row" ]
-                (casas (always "casa--sem-cor")
+            div [ classes "linha--caos", attribute "role" "row" ]
+                (casas (\_ _ -> "casa--sem-cor")
                     ++ [ span [ class "linha-contagem" ]
                             [ text (String.fromInt contagem.verdes ++ "V " ++ String.fromInt contagem.amarelas ++ "A") ]
                        ]
                 )
 
         Oculta ->
-            div [ class "linha linha--caos", attribute "role" "row" ]
-                (casas (always "casa--oculta"))
+            div [ classes "linha--caos", attribute "role" "row" ]
+                (casas (\_ _ -> "casa--oculta"))
+
+
+{-| Letra explodida perde a cor também na grade. Sem isso o jogador olharia a
+linha em vez do teclado e a explosão não atrapalharia (#19).
+-}
+classeDaCasa : EfeitosNaTela -> Char -> Maybe Cor -> String
+classeDaCasa tela letra cor =
+    if List.member letra tela.explodidas then
+        "casa--queimada"
+
+    else
+        Maybe.withDefault "" (Maybe.map classeDaCor cor)
 
 
 {-| Uma casa furada pelo tiroteio esconde a letra e a cor.
@@ -376,17 +629,38 @@ viewCasa furada classe letra =
         div [ class ("casa casa--confirmada " ++ classe), attribute "role" "gridcell" ] [ text letra ]
 
 
-viewRascunho : String -> Html Msg
-viewRascunho rascunho =
-    let
-        letras =
-            List.map (\letra -> div [ class "casa casa--rascunho casa--cinza" ] [ text (String.fromChar (Char.toUpper letra)) ])
-                (String.toList rascunho)
+{-| A linha em edição brilha quando há efeito anunciado para ela: vermelha se
+atrapalha, azul se ajuda.
+-}
+viewRascunho : Model -> Maybe Efeito -> Html Msg
+viewRascunho model proximo =
+    div
+        [ classList
+            ([ ( "linha", True )
+             , ( "linha--amaldicoada", Maybe.map Caos.ajuda proximo == Just False )
+             , ( "linha--protegida", Maybe.map Caos.ajuda proximo == Just True )
+             ]
+                ++ alternar "linha--tremor" model.tremor (model.tremor > 0)
+            )
+        , attribute "role" "row"
+        ]
+        (List.indexedMap (viewCasaRascunho (Rascunho.cursor model.rascunho)) (Rascunho.casas model.rascunho))
 
-        faltam =
-            List.repeat (Termo.tamanhoPalavra - String.length rascunho) (div [ class "casa casa--vazia" ] [])
-    in
-    div [ class "linha", attribute "role" "row" ] (letras ++ faltam)
+
+viewCasaRascunho : Int -> Int -> Maybe Char -> Html Msg
+viewCasaRascunho cursor posicao letra =
+    button
+        ([ type_ "button"
+         , classList
+            [ ( "casa casa--edicao", True )
+            , ( "casa--preenchida", letra /= Nothing )
+            , ( "casa--cursor", posicao == cursor )
+            ]
+         , attribute "aria-label" ("Casa " ++ String.fromInt (posicao + 1))
+         ]
+            ++ Teclado.apertarSemFoco (CasaEscolhida posicao)
+        )
+        [ text (Maybe.withDefault "" (Maybe.map (Char.toUpper >> String.fromChar) letra)) ]
 
 
 viewLinhaVazia : Html Msg
@@ -412,12 +686,15 @@ viewPainel : Model -> List (Html Msg)
 viewPainel model =
     [ button [ type_ "button", class "acao-nova-partida", onClick NovaPartida, disabled (model.partida == Carregando) ]
         [ text "Nova partida" ]
-    , div [ class "message-area" ] (viewMensagens model)
+    , div [ class "caos-painel" ] (viewEstado model)
+    , Html.Keyed.node "div"
+        [ class "caos-avisos", attribute "aria-live" "polite" ]
+        (List.map (\aviso -> ( String.fromInt aviso.id, viewAviso aviso )) model.avisos)
     ]
 
 
-viewMensagens : Model -> List (Html Msg)
-viewMensagens model =
+viewEstado : Model -> List (Html Msg)
+viewEstado model =
     case model.partida of
         NaoPedido ->
             []
@@ -430,10 +707,9 @@ viewMensagens model =
 
         Chegou partida ->
             List.filterMap identity
-                [ Maybe.map (mensagem "message--error") model.erro
-                , Just (viewSituacao partida)
-                , Maybe.map viewEvento partida.evento
-                , Maybe.map viewProximo partida.proximo
+                [ Just (viewSituacao partida)
+                , Maybe.map viewPendente partida.proximo
+                , Maybe.map (mensagem "message--error") model.erro
                 ]
 
 
@@ -441,7 +717,7 @@ viewSituacao : Partida -> Html Msg
 viewSituacao partida =
     case partida.situacao of
         EmAndamento ->
-            mensagem "message--info" ("Linhas restantes: " ++ String.fromInt (Caos.linhasRestantes partida))
+            viewLinhasRestantes partida
 
         Venceu ->
             mensagem "message--success" "Acertou, apesar do caos!"
@@ -450,38 +726,66 @@ viewSituacao partida =
             mensagem "message--error" ("A palavra era " ++ String.toUpper resposta ++ ".")
 
 
-viewEvento : Evento -> Html Msg
-viewEvento evento =
-    case evento of
-        Instantaneo efeito ->
-            viewEfeito "Aconteceu" efeito
-
-        LetraRevelada dica ->
-            let
-                onde =
-                    if dica.presente then
-                        " está na palavra."
-
-                    else
-                        " não está na palavra."
-            in
-            div [ class "message message--success caos-efeito", attribute "role" "status" ]
-                [ p [ class "caos-efeito-nome" ] [ text (Caos.nome Caos.DicaDeLetra) ]
-                , p [] [ text ("A letra " ++ String.toUpper (String.fromChar dica.letra) ++ onde) ]
-                ]
-
-
-viewProximo : Efeito -> Html Msg
-viewProximo efeito =
-    viewEfeito "No próximo palpite" efeito
-
-
-viewEfeito : String -> Efeito -> Html Msg
-viewEfeito quando efeito =
-    div [ class "message message--info caos-efeito", attribute "role" "status" ]
-        [ p [ class "caos-efeito-nome" ] [ text (quando ++ ": " ++ Caos.nome efeito) ]
-        , p [] [ text (Caos.descricao efeito) ]
+{-| Uma bolinha por linha da partida, apagada quando a linha já foi usada.
+-}
+viewLinhasRestantes : Partida -> Html Msg
+viewLinhasRestantes partida =
+    let
+        restantes =
+            Caos.linhasRestantes partida
+    in
+    div
+        [ class "caos-vidas"
+        , attribute "role" "status"
+        , attribute "aria-label" ("Linhas restantes: " ++ String.fromInt restantes)
         ]
+        [ span [ class "panel-label" ] [ text ("Linhas restantes: " ++ String.fromInt restantes) ]
+        , div [ class "caos-vidas-bolinhas" ]
+            (List.map
+                (\i -> span [ classList [ ( "caos-vida", True ), ( "caos-vida--usada", i >= restantes ) ] ] [])
+                (List.range 0 (partida.maxLinhas - 1))
+            )
+        ]
+
+
+viewPendente : Efeito -> Html Msg
+viewPendente efeito =
+    div
+        [ classList
+            [ ( "caos-pendente", True )
+            , ( "caos-pendente--ajuda", Caos.ajuda efeito )
+            ]
+        , attribute "role" "status"
+        ]
+        [ span [ class "caos-pendente-rotulo" ] [ text "No próximo palpite" ]
+        , span [ class "caos-pendente-nome" ] [ text (Caos.nome efeito) ]
+        ]
+
+
+viewAviso : Aviso -> Html Msg
+viewAviso aviso =
+    div
+        [ class ("caos-aviso caos-aviso--" ++ classeDoTom aviso.tom)
+        , attribute "style" ("--duracao:" ++ String.fromFloat duracaoDoAviso ++ "ms")
+        , attribute "role" "status"
+        ]
+        [ p [ class "caos-aviso-titulo" ] [ text aviso.titulo ]
+        , p [ class "caos-aviso-texto" ] [ text aviso.texto ]
+        , span [ class "caos-aviso-tempo" ] []
+        ]
+
+
+classeDoTom : Tom -> String
+classeDoTom tom =
+    case tom of
+        Ajuda ->
+            "ajuda"
+
+        Atrapalha ->
+            "atrapalha"
+
+        Anuncio ->
+            "anuncio"
 
 
 mensagem : String -> String -> Html Msg
@@ -494,6 +798,9 @@ viewRodape =
     [ text "A cada 2 palpites um efeito é sorteado. "
     , kbd [] [ text "A–Z" ]
     , text " digita, "
+    , kbd [] [ text "←" ]
+    , kbd [] [ text "→" ]
+    , text " ou um clique escolhem a casa, "
     , kbd [] [ text "⌫" ]
     , text " apaga, "
     , kbd [] [ text "Enter" ]
