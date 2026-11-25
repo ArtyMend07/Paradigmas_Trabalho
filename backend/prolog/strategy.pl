@@ -33,8 +33,9 @@ abertura(raiao).
 
 %!  orcamento(-Chamadas) is det.
 %
-%   Máximo de chamadas a feedback/3 por best_guess/3 (~1,3 µs cada).
-orcamento(600_000).
+%   Máximo de chamadas a feedback/3 por best_guess/3 (~1,3 µs cada). Com
+%   600 mil, rapido_apos_abertura passava de 2 s em máquinas mais lentas.
+orcamento(300_000).
 
 %!  best_guess(+Historico, -Palavra, -Motivo) is semidet.
 %
