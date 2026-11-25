@@ -1,5 +1,6 @@
 module CaosApi exposing (jogar, novaPartida, partidaDecoder)
 
+import Api
 import Caos exposing (Efeito, Evento(..), Exibicao(..), Linha, Partida, Situacao(..))
 import Http
 import Json.Decode as Decode exposing (Decoder)
@@ -9,7 +10,7 @@ import Termo exposing (Cor(..))
 
 novaPartida : (Result String Partida -> msg) -> Cmd msg
 novaPartida aoReceber =
-    Http.post
+    Api.post
         { url = "/api/caos/nova"
         , body = Http.emptyBody
         , expect = expectJson aoReceber partidaDecoder
@@ -18,7 +19,7 @@ novaPartida aoReceber =
 
 jogar : Int -> String -> (Result String Partida -> msg) -> Cmd msg
 jogar partida palavra aoReceber =
-    Http.post
+    Api.post
         { url = "/api/caos/palpite"
         , body =
             Http.jsonBody
@@ -171,23 +172,13 @@ expectJson aoReceber decoder =
                         |> Result.mapError (\_ -> "Resposta inesperada do servidor.")
 
                 Http.BadStatus_ metadados corpo ->
-                    Err (detalheDoErro metadados.statusCode corpo)
+                    Err (Api.mensagemDeErro metadados.statusCode corpo)
 
                 Http.BadUrl_ url ->
                     Err ("URL inválida: " ++ url)
 
                 Http.Timeout_ ->
-                    Err "O servidor demorou demais para responder."
+                    Err Api.semResposta
 
                 Http.NetworkError_ ->
                     Err "Não foi possível falar com o servidor. O backend está rodando?"
-
-
-detalheDoErro : Int -> String -> String
-detalheDoErro status corpo =
-    case Decode.decodeString (Decode.field "detail" Decode.string) corpo of
-        Ok detalhe ->
-            detalhe
-
-        Err _ ->
-            "Erro no servidor (código " ++ String.fromInt status ++ ")."
