@@ -27,6 +27,14 @@
 % linha(Palpite, CoresReais, Efeito, Exibicao).
 :- dynamic partida/2.
 
+% linhas_desfeitas(Id, Total): quantas linhas o voltar_no_tempo ja apagou.
+% Entra na conta do efeito a cada 2 palpites, que conta palpites feitos e nao
+% linhas na tela. Sem o fato, vale 0.
+:- dynamic linhas_desfeitas/2.
+
+% partidas mais antigas que isso saem da memoria quando uma nova comeca.
+max_partidas_guardadas(1000).
+
 linhas_iniciais(6).
 palpites_por_efeito(2).
 % um efeito que atrapalha a linha so entra se sobrar uma linha limpa depois dele.
@@ -62,34 +70,78 @@ atrapalha_a_linha(tempo_parado).
 nova_partida(Id) :-
     findall(R, ( resposta(R), word(R) ), Respostas),
     random_member(Resposta, Respostas),
-    flag(caos_partida, Id, Id + 1),
     linhas_iniciais(Max),
-    assertz(partida(Id, estado(Resposta, [], nenhum, Max))).
+    with_mutex(caos,
+               ( flag(caos_partida, Id, Id + 1),
+                 assertz(partida(Id, estado(Resposta, [], nenhum, Max))),
+                 esquecer_partidas_antigas
+               )).
+
+% guarda so as partidas mais recentes. As antigas sao as primeiras da base,
+% porque cada partida nova entra com assertz.
+esquecer_partidas_antigas :-
+    max_partidas_guardadas(Limite),
+    aggregate_all(count, partida(_, _), Total),
+    Sobrando is Total - Limite,
+    forall(( Sobrando > 0, limit(Sobrando, partida(Id, _)) ),
+           ( retractall(partida(Id, _)),
+             retractall(linhas_desfeitas(Id, _)) )).
 
 % jogar(+Id, +Palpite, -Resultado)
 % Resultado e ok(Estado, Evento) ou erro(Motivo).
-jogar(Id, _, erro(partida_inexistente)) :-
+% O mutex impede que dois palpites da mesma partida se misturem: o servidor
+% atende cada requisicao numa thread.
+jogar(Id, Palpite, Resultado) :-
+    with_mutex(caos, jogar_(Id, Palpite, Resultado)).
+
+jogar_(Id, _, erro(partida_inexistente)) :-
     \+ partida(Id, _),
     !.
-jogar(Id, _, erro(partida_encerrada)) :-
+jogar_(Id, _, erro(partida_encerrada)) :-
     partida(Id, Estado),
     encerrada(Estado),
     !.
-jogar(_, Palpite, erro(palavra_invalida)) :-
+jogar_(_, Palpite, erro(palavra_invalida)) :-
     \+ word(Palpite),
     !.
-jogar(Id, Palpite, ok(Novo, Evento)) :-
+jogar_(Id, Palpite, ok(Novo, Evento)) :-
     retract(partida(Id, Estado)),
     registrar_palpite(Palpite, Estado, Registrado),
-    proximo_efeito(Registrado, Novo, Evento),
+    desfeitas(Id, Desfeitas),
+    proximo_efeito(Desfeitas, Registrado, Novo, Evento),
+    contar_desfeita(Evento, Id, Desfeitas),
     assertz(partida(Id, Novo)).
 
+desfeitas(Id, Total) :-
+    (   linhas_desfeitas(Id, T)
+    ->  Total = T
+    ;   Total = 0
+    ).
+
+contar_desfeita(instantaneo(voltar_no_tempo), Id, Desfeitas) :-
+    !,
+    retractall(linhas_desfeitas(Id, _)),
+    Total is Desfeitas + 1,
+    assertz(linhas_desfeitas(Id, Total)).
+contar_desfeita(_, _, _).
+
+% A linha jogada sob tempo_parado fica oculta(Exibicao) ate o palpite seguinte.
+% Depois de revelada ela nao volta a ficar oculta, nem se o voltar_no_tempo
+% apagar a linha de depois.
 registrar_palpite(Palpite, estado(Resposta, Linhas, Efeito, Max),
                   estado(Resposta, Linhas1, nenhum, Max1)) :-
     feedback(Palpite, Resposta, Cores),
     exibicao(Efeito, Cores, Exibicao),
-    append(Linhas, [linha(Palpite, Cores, Efeito, Exibicao)], Linhas1),
+    ocultar(Efeito, Exibicao, Mostrada),
+    maplist(revelar, Linhas, Reveladas),
+    append(Reveladas, [linha(Palpite, Cores, Efeito, Mostrada)], Linhas1),
     linhas_apos_escudo(Efeito, Palpite, Resposta, Max, Max1).
+
+ocultar(tempo_parado, Exibicao, oculta(Exibicao)) :- !.
+ocultar(_, Exibicao, Exibicao).
+
+revelar(linha(P, C, E, oculta(Exibicao)), linha(P, C, E, Exibicao)) :- !.
+revelar(Linha, Linha).
 
 linhas_apos_escudo(escudo, Palpite, Resposta, Max, Max1) :-
     Palpite \== Resposta,
@@ -139,20 +191,23 @@ encerrada(estado(_, Linhas, _, Max)) :-
 acertou(estado(Resposta, Linhas, _, _)) :-
     last(Linhas, linha(Resposta, _, _, _)).
 
-proximo_efeito(Estado, Estado, nenhum) :-
+proximo_efeito(_, Estado, Estado, nenhum) :-
     encerrada(Estado),
     !.
-proximo_efeito(Estado, Estado, nenhum) :-
-    \+ hora_do_efeito(Estado),
+proximo_efeito(Desfeitas, Estado, Estado, nenhum) :-
+    \+ hora_do_efeito(Desfeitas, Estado),
     !.
-proximo_efeito(Estado, Novo, Evento) :-
+proximo_efeito(_, Estado, Novo, Evento) :-
     sortear_efeito(Estado, Efeito),
     aplicar_efeito(Efeito, Estado, Novo, Evento).
 
-hora_do_efeito(estado(_, Linhas, _, _)) :-
+% conta os palpites feitos, inclusive os que o voltar_no_tempo apagou. Se
+% contasse so as linhas, depois de apagar uma o efeito viria a cada palpite.
+hora_do_efeito(Desfeitas, estado(_, Linhas, _, _)) :-
     length(Linhas, Usadas),
+    Feitos is Usadas + Desfeitas,
     palpites_por_efeito(Intervalo),
-    Usadas mod Intervalo =:= 0.
+    Feitos mod Intervalo =:= 0.
 
 sortear_efeito(Estado, Efeito) :-
     findall(E, efeito_possivel(E, Estado), Possiveis),

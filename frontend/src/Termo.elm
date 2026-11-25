@@ -7,6 +7,7 @@ module Termo exposing
     , acertou
     , apagar
     , confirmar
+    , corDasLetras
     , corDoTeclado
     , deHistorico
     , digitar
@@ -210,7 +211,14 @@ tem prioridade maior que letra certa na posição errada (amarela) ou cinza
 -}
 corDoTeclado : Jogo -> Char -> Maybe Cor
 corDoTeclado (Jogo jogo) letra =
-    jogo.palpites
+    corDasLetras jogo.palpites letra
+
+
+{-| Melhor cor que a letra já teve nos palpites, sem limite de linhas.
+-}
+corDasLetras : List Palpite -> Char -> Maybe Cor
+corDasLetras palpites letra =
+    palpites
         |> List.concatMap (\palpite -> List.map2 Tuple.pair (String.toList palpite.palavra) palpite.cores)
         |> List.filter (\( l, _ ) -> l == letra)
         |> List.map Tuple.second

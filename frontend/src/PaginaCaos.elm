@@ -42,6 +42,7 @@ type alias Model =
     , rodada : Int
     , avisos : List Aviso
     , proximoAviso : Int
+    , pedido : Int
     }
 
 
@@ -95,7 +96,7 @@ semEfeitosNaTela =
 
 type Msg
     = NovaPartida
-    | RecebeuPartida (Result String Partida)
+    | RecebeuPartida Int (Result String Partida)
     | TeclaPressionada Tecla
     | Atirou (List ( Int, Int ))
     | Explodiu (List Char)
@@ -114,6 +115,7 @@ inicial =
     , rodada = 0
     , avisos = []
     , proximoAviso = 0
+    , pedido = 0
     }
 
 
@@ -137,18 +139,37 @@ iniciarPartida model =
         , tela = semEfeitosNaTela
         , tremor = 0
         , avisos = []
+        , pedido = model.pedido + 1
       }
-    , CaosApi.novaPartida RecebeuPartida
+    , CaosApi.novaPartida (RecebeuPartida (model.pedido + 1))
     )
 
 
+{-| Cada requisição leva o número do pedido. Uma resposta de pedido que já foi
+substituído (por exemplo, um palpite enviado antes de clicar em "Nova
+partida") é descartada.
+-}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    case msg of
+        RecebeuPartida pedido _ ->
+            if pedido == model.pedido then
+                atualizar msg model
+
+            else
+                ( model, Cmd.none )
+
+        _ ->
+            atualizar msg model
+
+
+atualizar : Msg -> Model -> ( Model, Cmd Msg )
+atualizar msg model =
     case msg of
         NovaPartida ->
             iniciarPartida model
 
-        RecebeuPartida (Ok partida) ->
+        RecebeuPartida _ (Ok partida) ->
             let
                 ( tela, cmdTela ) =
                     atualizarTela partida model.tela
@@ -182,7 +203,7 @@ update msg model =
             in
             ( { model | tela = { tela | explodidas = tela.explodidas ++ letras } }, Cmd.none )
 
-        RecebeuPartida (Err erro) ->
+        RecebeuPartida _ (Err erro) ->
             case model.partida of
                 Chegou _ ->
                     ( { model | erro = Just erro, enviando = False, tremor = model.tremor + 1 }, Cmd.none )
@@ -386,7 +407,7 @@ corDaTecla partida tela letra =
         Nothing
 
     else
-        Termo.corDoTeclado (Termo.deHistorico (Caos.palpitesComCores partida)) letra
+        Termo.corDasLetras (Caos.palpitesComCores partida) letra
 
 
 {-| A tecla some se foi limpa e continua cinza. Se a letra ganhar outra cor
@@ -418,8 +439,8 @@ tratarTecla tecla partida model =
                     ( { model | erro = Just "A palavra precisa ter 5 letras.", tremor = model.tremor + 1 }, Cmd.none )
 
                 Just palavra ->
-                    ( { model | enviando = True, erro = Nothing }
-                    , CaosApi.jogar partida.id palavra RecebeuPartida
+                    ( { model | enviando = True, erro = Nothing, pedido = model.pedido + 1 }
+                    , CaosApi.jogar partida.id palavra (RecebeuPartida (model.pedido + 1))
                     )
 
 

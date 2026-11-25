@@ -142,13 +142,12 @@ partida_json(Id, Estado, Evento, _{ id: Id,
     situacao(Estado, Situacao),
     resposta_revelada(Situacao, Resposta, Revelada).
 
-%   A linha jogada sob tempo_parado só mostra as cores depois do palpite seguinte.
+%   A linha jogada sob tempo_parado chega como oculta(_) até o palpite seguinte.
 linhas_json(Linhas, Json) :-
-    length(Linhas, Total),
-    findall(L, ( nth1(I, Linhas, Linha), linha_json(I, Total, Linha, L) ), Json).
+    maplist(linha_json, Linhas, Json).
 
-linha_json(Posicao, Total, linha(Palavra, _, Efeito, Exibicao), Json) :-
-    (   Efeito == tempo_parado, Posicao =:= Total
+linha_json(linha(Palavra, _, Efeito, Exibicao), Json) :-
+    (   Exibicao = oculta(_)
     ->  Visivel = oculta
     ;   Visivel = Exibicao
     ),
