@@ -42,6 +42,16 @@ efeito(alarme_falso, linha).
 efeito(troca_de_palavra, instantaneo).
 efeito(dica_de_letra, instantaneo).
 efeito(voltar_no_tempo, instantaneo).
+% estes quatro só mudam a tela: o Prolog sorteia e o Elm faz o resto.
+efeito(tiroteio, instantaneo).
+efeito(letras_apagadas, instantaneo).
+efeito(explosao_no_teclado, instantaneo).
+efeito(limpeza_do_teclado, instantaneo).
+
+so_na_tela(tiroteio).
+so_na_tela(letras_apagadas).
+so_na_tela(explosao_no_teclado).
+so_na_tela(limpeza_do_teclado).
 
 atrapalha_a_linha(cor_mentirosa).
 atrapalha_a_linha(cores_invertidas).
@@ -190,6 +200,10 @@ aplicar_efeito(voltar_no_tempo, estado(R, Linhas, _, Max),
                estado(R, Anteriores, nenhum, Max), instantaneo(voltar_no_tempo)) :-
     !,
     append(Anteriores, [_], Linhas).
+aplicar_efeito(Efeito, estado(R, Linhas, _, Max),
+               estado(R, Linhas, nenhum, Max), instantaneo(Efeito)) :-
+    so_na_tela(Efeito),
+    !.
 aplicar_efeito(Efeito, estado(R, Linhas, _, Max),
                estado(R, Linhas, Efeito, Max), anuncio(Efeito)).
 

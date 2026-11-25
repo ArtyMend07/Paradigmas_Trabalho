@@ -17,6 +17,7 @@ import Html exposing (Html, button, div, kbd, p, span, text)
 import Html.Attributes exposing (attribute, class, disabled, type_)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode exposing (Decoder)
+import Random
 import Teclado exposing (Tecla(..))
 import Termo exposing (Cor(..), Remoto(..))
 
@@ -26,13 +27,38 @@ type alias Model =
     , rascunho : String
     , erro : Maybe String
     , enviando : Bool
+    , tela : EfeitosNaTela
     }
+
+
+{-| Efeitos que só mudam a tela. O Prolog sorteia o efeito e avisa no
+`evento`; quanto tempo ele dura fica por conta do Elm.
+
+  - `furos`: casas (linha, posição) que levaram tiro, até o próximo palpite.
+  - `apagada`: linha que está sem letras e quantos palpites ainda faltam.
+  - `explodidas`: letras sem cor no teclado até serem jogadas de novo.
+  - `limpas`: letras cinzas que sumiram do teclado.
+
+-}
+type alias EfeitosNaTela =
+    { furos : List ( Int, Int )
+    , apagada : Maybe { linha : Int, faltam : Int }
+    , explodidas : List Char
+    , limpas : List Char
+    }
+
+
+semEfeitosNaTela : EfeitosNaTela
+semEfeitosNaTela =
+    { furos = [], apagada = Nothing, explodidas = [], limpas = [] }
 
 
 type Msg
     = NovaPartida
     | RecebeuPartida (Result String Partida)
     | TeclaPressionada Tecla
+    | Atirou (List ( Int, Int ))
+    | Explodiu (List Char)
 
 
 inicial : Model
@@ -41,6 +67,7 @@ inicial =
     , rascunho = ""
     , erro = Nothing
     , enviando = False
+    , tela = semEfeitosNaTela
     }
 
 
@@ -56,7 +83,7 @@ aoEntrar model =
 
 iniciarPartida : Model -> ( Model, Cmd Msg )
 iniciarPartida model =
-    ( { model | partida = Carregando, rascunho = "", erro = Nothing, enviando = False }
+    ( { model | partida = Carregando, rascunho = "", erro = Nothing, enviando = False, tela = semEfeitosNaTela }
     , CaosApi.novaPartida RecebeuPartida
     )
 
@@ -68,9 +95,27 @@ update msg model =
             iniciarPartida model
 
         RecebeuPartida (Ok partida) ->
-            ( { model | partida = Chegou partida, rascunho = "", erro = Nothing, enviando = False }
-            , Cmd.none
+            let
+                ( tela, cmd ) =
+                    atualizarTela partida model.tela
+            in
+            ( { model | partida = Chegou partida, rascunho = "", erro = Nothing, enviando = False, tela = tela }
+            , cmd
             )
+
+        Atirou furos ->
+            let
+                tela =
+                    model.tela
+            in
+            ( { model | tela = { tela | furos = furos } }, Cmd.none )
+
+        Explodiu letras ->
+            let
+                tela =
+                    model.tela
+            in
+            ( { model | tela = { tela | explodidas = tela.explodidas ++ letras } }, Cmd.none )
 
         RecebeuPartida (Err erro) ->
             case model.partida of
@@ -91,6 +136,105 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+
+{-| Roda a cada resposta do servidor: primeiro acaba o que durava só até
+este palpite, depois começa o efeito novo, se veio algum.
+-}
+atualizarTela : Partida -> EfeitosNaTela -> ( EfeitosNaTela, Cmd Msg )
+atualizarTela partida tela =
+    let
+        jogadas =
+            ultimaLinha partida
+                |> Maybe.map (.palavra >> String.toList)
+                |> Maybe.withDefault []
+
+        passou =
+            { tela
+                | furos = []
+                , apagada =
+                    tela.apagada
+                        |> Maybe.map (\apagada -> { apagada | faltam = apagada.faltam - 1 })
+                        |> Maybe.andThen
+                            (\apagada ->
+                                if apagada.faltam > 0 then
+                                    Just apagada
+
+                                else
+                                    Nothing
+                            )
+                , explodidas = List.filter (\letra -> not (List.member letra jogadas)) tela.explodidas
+            }
+    in
+    case partida.evento of
+        Just (Instantaneo Caos.Tiroteio) ->
+            ( passou, Random.generate Atirou (sortear 4 (casasJogadas partida)) )
+
+        Just (Instantaneo Caos.LetrasApagadas) ->
+            ( { passou | apagada = Just { linha = List.length partida.linhas - 1, faltam = 2 } }, Cmd.none )
+
+        Just (Instantaneo Caos.ExplosaoNoTeclado) ->
+            ( passou
+            , Random.generate Explodiu (sortear 3 (List.filter (\letra -> corDaTecla partida passou letra /= Nothing) alfabeto))
+            )
+
+        Just (Instantaneo Caos.LimpezaDoTeclado) ->
+            ( { passou | limpas = List.filter (\letra -> corDaTecla partida passou letra == Just Cinza) alfabeto }
+            , Cmd.none
+            )
+
+        _ ->
+            ( passou, Cmd.none )
+
+
+ultimaLinha : Partida -> Maybe Linha
+ultimaLinha partida =
+    List.head (List.reverse partida.linhas)
+
+
+casasJogadas : Partida -> List ( Int, Int )
+casasJogadas partida =
+    List.indexedMap (\linha _ -> List.map (Tuple.pair linha) (List.range 0 (Termo.tamanhoPalavra - 1))) partida.linhas
+        |> List.concat
+
+
+alfabeto : List Char
+alfabeto =
+    String.toList "abcdefghijklmnopqrstuvwxyz"
+
+
+{-| Sorteia até `n` elementos diferentes da lista: dá um peso aleatório para
+cada um, ordena pelos pesos e pega os `n` primeiros.
+-}
+sortear : Int -> List a -> Random.Generator (List a)
+sortear n lista =
+    Random.list (List.length lista) (Random.float 0 1)
+        |> Random.map
+            (\pesos ->
+                List.map2 Tuple.pair pesos lista
+                    |> List.sortBy Tuple.first
+                    |> List.map Tuple.second
+                    |> List.take n
+            )
+
+
+{-| Cor da tecla no modo caos: a do Termo, menos as letras que explodiram.
+-}
+corDaTecla : Partida -> EfeitosNaTela -> Char -> Maybe Cor
+corDaTecla partida tela letra =
+    if List.member letra tela.explodidas then
+        Nothing
+
+    else
+        Termo.corDoTeclado (Termo.deHistorico (Caos.palpitesComCores partida)) letra
+
+
+{-| A tecla some se foi limpa e continua cinza. Se a letra ganhar outra cor
+depois, ela volta.
+-}
+teclaAparece : Partida -> EfeitosNaTela -> Char -> Bool
+teclaAparece partida tela letra =
+    not (List.member letra tela.limpas && corDaTecla partida tela letra == Just Cinza)
 
 
 tratarTecla : Tecla -> Partida -> Model -> ( Model, Cmd Msg )
@@ -148,21 +292,34 @@ viewJogo : Model -> Html Msg
 viewJogo model =
     case model.partida of
         Chegou partida ->
-            div []
-                [ div [ class "grade", attribute "role" "grid", attribute "aria-label" "Grade do modo caos" ]
-                    (linhasDaGrade model.rascunho partida)
-                , Teclado.viewTeclado TeclaPressionada (Termo.deHistorico (Caos.palpitesComCores partida))
+            div [ class "caos-jogo" ]
+                [ viewArma model.tela
+                , div [ class "grade", attribute "role" "grid", attribute "aria-label" "Grade do modo caos" ]
+                    (linhasDaGrade model.tela model.rascunho partida)
+                , Teclado.viewTecladoCom TeclaPressionada (corDaTecla partida model.tela) (teclaAparece partida model.tela)
                 ]
 
         _ ->
             div [ class "grade" ] []
 
 
-linhasDaGrade : String -> Partida -> List (Html Msg)
-linhasDaGrade rascunho partida =
+{-| A arma entra, atira e sai pela animação do CSS, que roda uma vez quando o
+elemento aparece.
+-}
+viewArma : EfeitosNaTela -> Html Msg
+viewArma tela =
+    if List.isEmpty tela.furos then
+        text ""
+
+    else
+        div [ class "caos-arma", attribute "aria-hidden" "true" ] [ text "🔫" ]
+
+
+linhasDaGrade : EfeitosNaTela -> String -> Partida -> List (Html Msg)
+linhasDaGrade tela rascunho partida =
     let
         jogadas =
-            List.map viewLinha partida.linhas
+            List.indexedMap (viewLinha tela) partida.linhas
 
         atual =
             if Caos.emAndamento partida then
@@ -177,19 +334,27 @@ linhasDaGrade rascunho partida =
     jogadas ++ atual ++ vazias
 
 
-viewLinha : Linha -> Html Msg
-viewLinha linha =
+viewLinha : EfeitosNaTela -> Int -> Linha -> Html Msg
+viewLinha tela numero linha =
     let
         letras =
-            String.toList linha.palavra
+            if Maybe.map .linha tela.apagada == Just numero then
+                List.repeat Termo.tamanhoPalavra ""
+
+            else
+                List.map (Char.toUpper >> String.fromChar) (String.toList linha.palavra)
+
+        casas classeDe =
+            List.indexedMap (\posicao letra -> viewCasa (List.member ( numero, posicao ) tela.furos) (classeDe posicao) letra) letras
     in
     case linha.exibicao of
         Cores cores ->
-            div [ class "linha", attribute "role" "row" ] (List.map2 viewCasaColorida letras cores)
+            div [ class "linha", attribute "role" "row" ]
+                (casas (\posicao -> List.drop posicao cores |> List.head |> Maybe.map classeDaCor |> Maybe.withDefault ""))
 
         Contagem contagem ->
             div [ class "linha linha--caos", attribute "role" "row" ]
-                (List.map (viewCasaSemCor "casa--sem-cor") letras
+                (casas (always "casa--sem-cor")
                     ++ [ span [ class "linha-contagem" ]
                             [ text (String.fromInt contagem.verdes ++ "V " ++ String.fromInt contagem.amarelas ++ "A") ]
                        ]
@@ -197,20 +362,18 @@ viewLinha linha =
 
         Oculta ->
             div [ class "linha linha--caos", attribute "role" "row" ]
-                (List.map (viewCasaSemCor "casa--oculta") letras)
+                (casas (always "casa--oculta"))
 
 
-viewCasaColorida : Char -> Cor -> Html Msg
-viewCasaColorida letra cor =
-    div
-        [ class ("casa casa--confirmada " ++ classeDaCor cor), attribute "role" "gridcell" ]
-        [ text (String.fromChar (Char.toUpper letra)) ]
+{-| Uma casa furada pelo tiroteio esconde a letra e a cor.
+-}
+viewCasa : Bool -> String -> String -> Html Msg
+viewCasa furada classe letra =
+    if furada then
+        div [ class "casa casa--confirmada casa--furada", attribute "role" "gridcell", attribute "aria-label" "casa furada" ] []
 
-
-viewCasaSemCor : String -> Char -> Html Msg
-viewCasaSemCor classe letra =
-    div [ class ("casa casa--confirmada " ++ classe), attribute "role" "gridcell" ]
-        [ text (String.fromChar (Char.toUpper letra)) ]
+    else
+        div [ class ("casa casa--confirmada " ++ classe), attribute "role" "gridcell" ] [ text letra ]
 
 
 viewRascunho : String -> Html Msg

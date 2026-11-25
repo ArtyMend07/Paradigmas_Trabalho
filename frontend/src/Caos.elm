@@ -26,6 +26,10 @@ type Efeito
     | TrocaDePalavra
     | DicaDeLetra
     | VoltarNoTempo
+    | Tiroteio
+    | LetrasApagadas
+    | ExplosaoNoTeclado
+    | LimpezaDoTeclado
 
 
 type Exibicao
@@ -119,6 +123,18 @@ efeitoDeTexto texto =
         "voltar_no_tempo" ->
             Just VoltarNoTempo
 
+        "tiroteio" ->
+            Just Tiroteio
+
+        "letras_apagadas" ->
+            Just LetrasApagadas
+
+        "explosao_no_teclado" ->
+            Just ExplosaoNoTeclado
+
+        "limpeza_do_teclado" ->
+            Just LimpezaDoTeclado
+
         _ ->
             Nothing
 
@@ -153,6 +169,18 @@ nome efeito =
         VoltarNoTempo ->
             "Voltar no tempo"
 
+        Tiroteio ->
+            "Tiroteio"
+
+        LetrasApagadas ->
+            "Letras apagadas"
+
+        ExplosaoNoTeclado ->
+            "Explosão no teclado"
+
+        LimpezaDoTeclado ->
+            "Limpeza do teclado"
+
 
 descricao : Efeito -> String
 descricao efeito =
@@ -183,3 +211,15 @@ descricao efeito =
 
         VoltarNoTempo ->
             "O último palpite foi desfeito."
+
+        Tiroteio ->
+            "Algumas casas levaram tiro e ficam furadas até o próximo palpite."
+
+        LetrasApagadas ->
+            "As letras do último palpite sumiram por 2 palpites. As cores ficaram."
+
+        ExplosaoNoTeclado ->
+            "3 letras do teclado perderam a cor até serem jogadas de novo."
+
+        LimpezaDoTeclado ->
+            "As letras cinzas sumiram do teclado."

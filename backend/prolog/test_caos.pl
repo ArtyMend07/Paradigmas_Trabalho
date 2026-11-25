@@ -156,4 +156,12 @@ test(dica_diz_se_a_letra_esta_na_resposta) :-
     ( memberchk(Letra, Letras) -> Esperada = presente ; Esperada = ausente ),
     assertion(Presenca == Esperada).
 
+test(efeito_so_na_tela_nao_muda_a_partida,
+     forall(member(Efeito, [tiroteio, letras_apagadas, explosao_no_teclado, limpeza_do_teclado]))) :-
+    estado_com(carro, [termo, pulha], 6, Estado),
+    assertion(efeito_possivel(Efeito, Estado)),
+    caos:aplicar_efeito(Efeito, Estado, Novo, Evento),
+    assertion(Novo == Estado),
+    assertion(Evento == instantaneo(Efeito)).
+
 :- end_tests(caos_solucao).

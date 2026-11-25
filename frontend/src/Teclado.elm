@@ -1,7 +1,7 @@
-module Teclado exposing (Tecla(..), teclaFisica, viewTeclado)
+module Teclado exposing (Tecla(..), teclaFisica, viewTeclado, viewTecladoCom)
 
 import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (attribute, class, type_)
+import Html.Attributes exposing (attribute, class, disabled, type_)
 import Html.Events exposing (onClick)
 import Termo exposing (Cor(..), Jogo)
 
@@ -36,9 +36,17 @@ teclaFisica chave =
 
 viewTeclado : (Tecla -> msg) -> Jogo -> Html msg
 viewTeclado aoApertar jogo =
+    viewTecladoCom aoApertar (Termo.corDoTeclado jogo) (always True)
+
+
+{-| Teclado com a cor de cada letra e quais letras aparecem decididas por fora.
+O modo caos usa para apagar cores e esconder teclas.
+-}
+viewTecladoCom : (Tecla -> msg) -> (Char -> Maybe Cor) -> (Char -> Bool) -> Html msg
+viewTecladoCom aoApertar corDaLetra aparece =
     let
         letras =
-            String.toList >> List.map (viewLetra aoApertar jogo)
+            String.toList >> List.map (\letra -> viewLetra aoApertar (corDaLetra letra) (aparece letra) letra)
     in
     div [ class "teclado" ]
         [ viewLinha (letras "qwertyuiop")
@@ -56,14 +64,24 @@ viewLinha teclas =
     div [ class "teclado-linha" ] teclas
 
 
-viewLetra : (Tecla -> msg) -> Jogo -> Char -> Html msg
-viewLetra aoApertar jogo letra =
-    button
-        [ type_ "button"
-        , class (classesDaTecla (Termo.corDoTeclado jogo letra))
-        , onClick (aoApertar (Letra letra))
-        ]
-        [ text (String.fromChar (Char.toUpper letra)) ]
+viewLetra : (Tecla -> msg) -> Maybe Cor -> Bool -> Char -> Html msg
+viewLetra aoApertar cor aparece letra =
+    if aparece then
+        button
+            [ type_ "button"
+            , class (classesDaTecla cor)
+            , onClick (aoApertar (Letra letra))
+            ]
+            [ text (String.fromChar (Char.toUpper letra)) ]
+
+    else
+        button
+            [ type_ "button"
+            , class "tecla tecla--sumida"
+            , disabled True
+            , attribute "aria-hidden" "true"
+            ]
+            []
 
 
 viewEspecial : (Tecla -> msg) -> Tecla -> String -> String -> Html msg
