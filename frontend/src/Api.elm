@@ -1,157 +1,211 @@
 module Api exposing
-    ( Difficulty(..)
-    , Hint
-    , difficultyLabel
-    , generate
-    , hint
-    , solve
+    ( Sugestao
+    , buscarCandidatas
+    , candidatasDecoder
+    , corDecoder
+    , encodeHistorico
+    , encodePalavra
+    , jogarSozinho
+    , mensagemDeErro
+    , palpiteDecoder
+    , passosDecoder
+    , sugerir
+    , sugestaoDecoder
     )
 
 {-| Comunicação com o backend (FastAPI + Prolog).
 
-Em Elm, uma requisição HTTP não "acontece" quando chamamos uma função. As
-funções deste módulo devolvem um `Cmd msg`: uma DESCRIÇÃO do efeito que
-queremos. Quem executa o efeito é o runtime do Elm; quando a resposta chega,
-ele chama nosso `update` com a mensagem que indicamos (por exemplo,
-`GotPuzzle resultado`). É assim que o Elm mantém todas as funções puras.
+Este módulo é o CONTRATO entre o Elm e o backend (#7). Cada rota recebe e
+devolve JSON:
 
-As URLs começam com `/api/...`. Em desenvolvimento, o Vite repassa essas
-requisições para o backend em <http://localhost:8000> (veja vite.config.js).
+    POST /api/candidatas
+        envia  {"historico": [["barra", ["gray","green","green","green","gray"]], ...]}
+        recebe {"palavras": ["carro", "jarro", ...]}
+
+    POST /api/sugestao
+        envia  {"historico": [...]}             (mesmo formato acima)
+        recebe {"palavra": "corvo", "motivo": "restam 6 palavras; ..."}
+
+    POST /api/autoplay
+        envia  {"palavra": "carro"}
+        recebe {"passos": [["serao", ["gray", ...]], ..., ["carro", ["green", ...]]]}
+
+    Erros: status 422 com {"detail": "mensagem"}.
+
+Um palpite é um par `[palavra, cores]` (lista, não objeto) porque é esse o
+formato que os predicados Prolog usam: o janus não converte termos
+compostos, então o backend repassa as listas como vieram.
+
+Assim como no template, nenhuma função aqui "faz" a requisição: elas
+devolvem um `Cmd msg`, que o runtime do Elm executa. A resposta volta ao
+`update` sempre como `Result String a`.
 
 -}
 
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-import Sudoku exposing (Board)
+import Termo exposing (Cor(..), Palpite)
 
 
-type Difficulty
-    = Easy
-    | Medium
-    | Hard
+
+-- TIPOS
 
 
-difficultyLabel : Difficulty -> String
-difficultyLabel difficulty =
-    case difficulty of
-        Easy ->
-            "Fácil"
-
-        Medium ->
-            "Médio"
-
-        Hard ->
-            "Difícil"
-
-
-{-| Nome usado pela API (e pelo Prolog: são os átomos easy/medium/hard).
--}
-difficultyToString : Difficulty -> String
-difficultyToString difficulty =
-    case difficulty of
-        Easy ->
-            "easy"
-
-        Medium ->
-            "medium"
-
-        Hard ->
-            "hard"
-
-
-{-| Um _record_ (registro): um conjunto de campos com nome. O `type alias`
-também cria automaticamente uma função construtora `Hint : Int -> Int -> Int
--> Hint`, que usamos no decoder abaixo.
--}
-type alias Hint =
-    { row : Int
-    , col : Int
-    , value : Int
+type alias Sugestao =
+    { palavra : String
+    , motivo : String
     }
 
 
 
 -- REQUISIÇÕES
+
+
+{-| Palavras da base compatíveis com todos os palpites do histórico.
+-}
+buscarCandidatas : List Palpite -> (Result String (List String) -> msg) -> Cmd msg
+buscarCandidatas historico toMsg =
+    Http.post
+        { url = "/api/candidatas"
+        , body = Http.jsonBody (encodeHistorico historico)
+        , expect = expectJson toMsg candidatasDecoder
+        }
+
+
+{-| Próximo palpite escolhido pelo Prolog (minimax), com a justificativa.
+-}
+sugerir : List Palpite -> (Result String Sugestao -> msg) -> Cmd msg
+sugerir historico toMsg =
+    Http.post
+        { url = "/api/sugestao"
+        , body = Http.jsonBody (encodeHistorico historico)
+        , expect = expectJson toMsg sugestaoDecoder
+        }
+
+
+{-| O Prolog joga sozinho até acertar `palavra`. Devolve um palpite por
+tentativa; o último é todo verde.
+-}
+jogarSozinho : String -> (Result String (List Palpite) -> msg) -> Cmd msg
+jogarSozinho palavra toMsg =
+    Http.post
+        { url = "/api/autoplay"
+        , body = Http.jsonBody (encodePalavra palavra)
+        , expect = expectJson toMsg passosDecoder
+        }
+
+
+
+-- ENCODERS
+
+
+corParaString : Cor -> String
+corParaString cor =
+    case cor of
+        Verde ->
+            "green"
+
+        Amarelo ->
+            "yellow"
+
+        Cinza ->
+            "gray"
+
+
+{-| Um palpite vira `["barra", ["gray", "green", ...]]`.
+-}
+encodePalpite : Palpite -> Encode.Value
+encodePalpite palpite =
+    Encode.list identity
+        [ Encode.string palpite.palavra
+        , Encode.list (corParaString >> Encode.string) palpite.cores
+        ]
+
+
+encodeHistorico : List Palpite -> Encode.Value
+encodeHistorico historico =
+    Encode.object [ ( "historico", Encode.list encodePalpite historico ) ]
+
+
+encodePalavra : String -> Encode.Value
+encodePalavra palavra =
+    Encode.object [ ( "palavra", Encode.string palavra ) ]
+
+
+
+-- DECODERS
 --
--- Todas recebem uma função `toMsg` que diz como embrulhar o resultado numa
--- mensagem. `Result String a` é: ou `Ok valor`, ou `Err mensagemDeErro`.
+-- Os decoders são estritos de propósito: uma cor desconhecida ou um palpite
+-- com número errado de cores vira erro de decodificação, em vez de um valor
+-- que o resto do programa teria que conferir de novo.
 
 
-generate : Difficulty -> (Result String Board -> msg) -> Cmd msg
-generate difficulty toMsg =
-    Http.post
-        { url = "/api/generate"
-        , body =
-            Http.jsonBody
-                (Encode.object [ ( "difficulty", Encode.string (difficultyToString difficulty) ) ])
-        , expect = expectJson toMsg boardDecoder
-        }
-
-
-solve : Board -> (Result String Board -> msg) -> Cmd msg
-solve board toMsg =
-    Http.post
-        { url = "/api/solve"
-        , body = Http.jsonBody (encodeBoard board)
-        , expect = expectJson toMsg boardDecoder
-        }
-
-
-hint : Board -> (Result String Hint -> msg) -> Cmd msg
-hint board toMsg =
-    Http.post
-        { url = "/api/hint"
-        , body = Http.jsonBody (encodeBoard board)
-        , expect = expectJson toMsg hintDecoder
-        }
-
-
-
--- JSON
---
--- Elm não converte JSON em valores "magicamente". Escrevemos DECODERS, que
--- descrevem a forma esperada do JSON. Se o JSON vier diferente, a decodificação
--- falha com uma mensagem de erro, em vez de gerar um valor inválido.
-
-
-{-| Envia `{"board": [[5,3,0,...], ...]}`.
+{-| `Decode.andThen` olha o valor já lido e decide o próximo decoder: aqui,
+sucesso com a cor certa ou falha com uma mensagem.
 -}
-encodeBoard : Board -> Encode.Value
-encodeBoard board =
-    Encode.object
-        [ ( "board", Encode.list (Encode.list Encode.int) (Sudoku.toLists board) ) ]
+corDecoder : Decoder Cor
+corDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\texto ->
+                case texto of
+                    "green" ->
+                        Decode.succeed Verde
+
+                    "yellow" ->
+                        Decode.succeed Amarelo
+
+                    "gray" ->
+                        Decode.succeed Cinza
+
+                    _ ->
+                        Decode.fail ("Cor desconhecida: " ++ texto)
+            )
 
 
-{-| Lê `{"board": [[...], ...]}`. Decoders se combinam como peças de Lego:
-`Decode.list (Decode.list Decode.int)` é "uma lista de listas de inteiros".
+{-| Lê `["barra", [cores]]`. `Decode.index` pega uma posição da lista.
 -}
-boardDecoder : Decoder Board
-boardDecoder =
-    Decode.field "board" (Decode.list (Decode.list Decode.int))
-        |> Decode.map Sudoku.fromLists
+palpiteDecoder : Decoder Palpite
+palpiteDecoder =
+    Decode.map2 Palpite
+        (Decode.index 0 Decode.string)
+        (Decode.index 1 (Decode.list corDecoder |> Decode.andThen exigirCincoCores))
 
 
-{-| `Decode.map3` junta três decoders e passa os três resultados para a
-função `Hint` (o construtor do record).
--}
-hintDecoder : Decoder Hint
-hintDecoder =
-    Decode.map3 Hint
-        (Decode.field "row" Decode.int)
-        (Decode.field "col" Decode.int)
-        (Decode.field "value" Decode.int)
+exigirCincoCores : List Cor -> Decoder (List Cor)
+exigirCincoCores cores =
+    if List.length cores == 5 then
+        Decode.succeed cores
+
+    else
+        Decode.fail ("Esperava 5 cores, vieram " ++ String.fromInt (List.length cores) ++ ".")
+
+
+candidatasDecoder : Decoder (List String)
+candidatasDecoder =
+    Decode.field "palavras" (Decode.list Decode.string)
+
+
+sugestaoDecoder : Decoder Sugestao
+sugestaoDecoder =
+    Decode.map2 Sugestao
+        (Decode.field "palavra" Decode.string)
+        (Decode.field "motivo" Decode.string)
+
+
+passosDecoder : Decoder (List Palpite)
+passosDecoder =
+    Decode.field "passos" (Decode.list palpiteDecoder)
 
 
 
 -- TRATAMENTO DE ERROS
---
--- `Http.expectJson` já existe, mas quando o servidor responde com erro (ex.:
--- 422) ele descarta o corpo da resposta. Nosso backend manda uma mensagem útil
--- em `{"detail": "..."}`, então escrevemos nossa própria versão, que olha o
--- corpo e devolve sempre um `Result String a` com mensagens em português.
 
 
+{-| Igual ao `Http.expectJson`, mas lê o corpo das respostas de erro para
+mostrar a mensagem do backend em vez de só o código HTTP.
+-}
 expectJson : (Result String a -> msg) -> Decoder a -> Http.Expect msg
 expectJson toMsg decoder =
     Http.expectStringResponse toMsg <|
@@ -162,7 +216,7 @@ expectJson toMsg decoder =
                         |> Result.mapError (\_ -> "Resposta inesperada do servidor.")
 
                 Http.BadStatus_ metadata body ->
-                    Err (errorDetail metadata.statusCode body)
+                    Err (mensagemDeErro metadata.statusCode body)
 
                 Http.BadUrl_ url ->
                     Err ("URL inválida: " ++ url)
@@ -174,14 +228,29 @@ expectJson toMsg decoder =
                     Err "Não foi possível falar com o servidor. O backend está rodando?"
 
 
-{-| Tenta extrair o campo `detail` (quando ele é uma string). Se não der,
-monta uma mensagem genérica com o código HTTP.
+{-| Extrai a mensagem do corpo de um erro. O `detail` chega em dois formatos:
+
+  - erro nosso (422 lançado nas rotas): `{"detail": "Nenhuma palavra ..."}`
+  - erro de validação do Pydantic: `{"detail": [{"msg": "...", ...}, ...]}`
+
+`Decode.oneOf` tenta cada decoder em ordem e fica com o primeiro que dá
+certo. Se nenhum servir, a mensagem genérica traz o código HTTP.
+
 -}
-errorDetail : Int -> String -> String
-errorDetail status body =
-    case Decode.decodeString (Decode.field "detail" Decode.string) body of
-        Ok detail ->
-            detail
+mensagemDeErro : Int -> String -> String
+mensagemDeErro status body =
+    let
+        detail =
+            Decode.field "detail"
+                (Decode.oneOf
+                    [ Decode.string
+                    , Decode.index 0 (Decode.field "msg" Decode.string)
+                    ]
+                )
+    in
+    case Decode.decodeString detail body of
+        Ok mensagem ->
+            mensagem
 
         Err _ ->
             "Erro no servidor (código " ++ String.fromInt status ++ ")."

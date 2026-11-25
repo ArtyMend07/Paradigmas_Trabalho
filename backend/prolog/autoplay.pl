@@ -17,17 +17,11 @@ load_respostas(Arquivo) :-
     forall(( member(Linha, Linhas), Linha \== "" ),
            ( atom_string(Palavra, Linha), assertz(resposta(Palavra)) )).
 
-:- if(( prolog_load_context(directory, Dir),
-        directory_file_path(Dir, 'strategy.pl', Arquivo),
-        exists_file(Arquivo) )).
 :- use_module(strategy).
-:- else.
-best_guess(Historico, Palavra, "provisorio: primeira candidata") :-
-    candidates(Historico, [Palavra|_]).
-:- endif.
 
 % autoplay(+Resposta, -Passos)
-% o solver joga sozinho ate acertar. na ordem em que foram jogados, e o ultimo e a resposta toda green.
+% o solver joga sozinho ate acertar. Passos e a lista de [Palpite, Cores]
+% na ordem em que foram jogados, e o ultimo e a resposta toda green.
 % falha se a palavra nao for resposta/1.
 autoplay(Resposta, Passos) :-
     atom_string(R, Resposta),   % aceita atomo ou string (vindo do python)
