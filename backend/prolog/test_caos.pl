@@ -28,6 +28,7 @@ estado_com(Resposta, Palpites, Max, estado(Resposta, Linhas, nenhum, Max)) :-
 partida_de_teste(Id, Estado) :-
     Id = teste,
     retractall(caos:partida(Id, _)),
+    retractall(caos:linhas_desfeitas(Id, _)),
     assertz(caos:partida(Id, Estado)).
 
 diferencas([], [], 0).
@@ -76,6 +77,26 @@ test(efeito_sorteado_a_cada_dois_palpites) :-
     partida_de_teste(Id, Estado),
     jogar(Id, pulha, ok(_, Evento)),
     assertion(Evento \== nenhum).
+
+test(linha_desfeita_conta_como_palpite) :-
+    % 1 linha na tela + 1 desfeita: o proximo e o 3o palpite, sem efeito.
+    estado_com(carro, [termo], 6, Estado),
+    partida_de_teste(Id, Estado),
+    assertz(caos:linhas_desfeitas(Id, 1)),
+    jogar(Id, pulha, ok(_, Evento)),
+    assertion(Evento == nenhum).
+
+test(voltar_no_tempo_soma_uma_linha_desfeita) :-
+    caos:contar_desfeita(instantaneo(voltar_no_tempo), teste_desfeita, 2),
+    assertion(caos:linhas_desfeitas(teste_desfeita, 3)),
+    retractall(caos:linhas_desfeitas(teste_desfeita, _)).
+
+test(tempo_parado_revela_e_nao_esconde_de_novo) :-
+    partida_de_teste(Id, estado(carro, [], tempo_parado, 6)),
+    jogar(Id, termo, ok(estado(_, [linha(_, _, _, Antes)], _, _), _)),
+    assertion(Antes = oculta(_)),
+    jogar(Id, barra, ok(estado(_, [linha(_, _, _, Depois)|_], _, _), _)),
+    assertion(Depois = cores(_)).
 
 test(escudo_devolve_a_linha_do_erro) :-
     partida_de_teste(Id, estado(carro, [], escudo, 6)),

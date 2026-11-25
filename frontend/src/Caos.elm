@@ -77,7 +77,8 @@ linhasRestantes partida =
 
 
 {-| Só as linhas que mostram cores entram no teclado. Uma cor mentirosa também
-entra, porque o jogador não sabe qual casa mentiu.
+entra, porque o jogador não sabe qual casa mentiu. Numa linha de cores
+invertidas o jogador sabe da troca, então o teclado desfaz a inversão.
 -}
 palpitesComCores : Partida -> List Palpite
 palpitesComCores partida =
@@ -85,12 +86,29 @@ palpitesComCores partida =
         (\linha ->
             case linha.exibicao of
                 Cores cores ->
-                    Just { palavra = linha.palavra, cores = cores }
+                    if linha.efeito == Just CoresInvertidas then
+                        Just { palavra = linha.palavra, cores = List.map desinverter cores }
+
+                    else
+                        Just { palavra = linha.palavra, cores = cores }
 
                 _ ->
                     Nothing
         )
         partida.linhas
+
+
+desinverter : Cor -> Cor
+desinverter cor =
+    case cor of
+        Termo.Verde ->
+            Termo.Cinza
+
+        Termo.Cinza ->
+            Termo.Verde
+
+        Termo.Amarelo ->
+            Termo.Amarelo
 
 
 efeitoDeTexto : String -> Maybe Efeito
