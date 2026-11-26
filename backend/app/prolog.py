@@ -68,3 +68,50 @@ def autoplay(palavra: str) -> list[Palpite]:
         case list():
             return result
     raise ValueError(f"resultado inesperado de api_autoplay/2: {result!r}")
+
+
+class PartidaNaoEncontrada(Exception):
+    """O id não corresponde a nenhuma partida do modo caos."""
+
+
+class PartidaEncerrada(Exception):
+    """A partida do modo caos já terminou."""
+
+
+class PalpiteInvalido(Exception):
+    """O palpite não está na base de palavras."""
+
+
+ERROS_DO_CAOS = {
+    "partida_inexistente": PartidaNaoEncontrada,
+    "partida_encerrada": PartidaEncerrada,
+    "palavra_invalida": PalpiteInvalido,
+}
+
+
+def _resposta_do_caos(result: dict, variavel: str, predicado: str):
+    # Os predicados do caos sempre deveriam ter sucesso. Se falharem, o dict
+    # vem sem a variável; melhor um erro que diga qual predicado falhou do
+    # que um KeyError.
+    if not result["truth"]:
+        raise RuntimeError(f"{predicado} falhou")
+    return result[variavel]
+
+
+def caos_nova() -> dict:
+    result = janus.query_once("api:api_caos_nova(P)")
+    return _resposta_do_caos(result, "P", "api_caos_nova/1")
+
+
+def caos_palpite(partida: int, palavra: str) -> dict:
+    result = _resposta_do_caos(
+        janus.query_once(
+            "api:api_caos_palpite(Id, W, R)", {"Id": partida, "W": palavra}
+        ),
+        "R",
+        "api_caos_palpite/3",
+    )
+    # api_caos_palpite/3 devolve o dict da partida ou o átomo do erro.
+    if isinstance(result, str):
+        raise ERROS_DO_CAOS[result]
+    return result

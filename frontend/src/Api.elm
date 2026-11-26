@@ -9,6 +9,8 @@ module Api exposing
     , mensagemDeErro
     , palpiteDecoder
     , passosDecoder
+    , post
+    , semResposta
     , sugerir
     , sugestaoDecoder
     )
@@ -62,11 +64,36 @@ type alias Sugestao =
 -- REQUISIÇÕES
 
 
+{-| Tempo máximo de espera por uma resposta do backend, em milissegundos. Sem
+ele, um backend que aceita a conexão mas nunca responde deixa a tela em
+"Consultando o Prolog..." para sempre.
+-}
+tempoLimite : Float
+tempoLimite =
+    15000
+
+
+{-| Igual ao `Http.post`, mas com `tempoLimite`. Todas as requisições do
+frontend passam por aqui, inclusive as do modo caos.
+-}
+post : { url : String, body : Http.Body, expect : Http.Expect msg } -> Cmd msg
+post { url, body, expect } =
+    Http.request
+        { method = "POST"
+        , headers = []
+        , url = url
+        , body = body
+        , expect = expect
+        , timeout = Just tempoLimite
+        , tracker = Nothing
+        }
+
+
 {-| Palavras da base compatíveis com todos os palpites do histórico.
 -}
 buscarCandidatas : List Palpite -> (Result String (List String) -> msg) -> Cmd msg
 buscarCandidatas historico toMsg =
-    Http.post
+    post
         { url = "/api/candidatas"
         , body = Http.jsonBody (encodeHistorico historico)
         , expect = expectJson toMsg candidatasDecoder
@@ -77,7 +104,7 @@ buscarCandidatas historico toMsg =
 -}
 sugerir : List Palpite -> (Result String Sugestao -> msg) -> Cmd msg
 sugerir historico toMsg =
-    Http.post
+    post
         { url = "/api/sugestao"
         , body = Http.jsonBody (encodeHistorico historico)
         , expect = expectJson toMsg sugestaoDecoder
@@ -89,7 +116,7 @@ tentativa; o último é todo verde.
 -}
 jogarSozinho : String -> (Result String (List Palpite) -> msg) -> Cmd msg
 jogarSozinho palavra toMsg =
-    Http.post
+    post
         { url = "/api/autoplay"
         , body = Http.jsonBody (encodePalavra palavra)
         , expect = expectJson toMsg passosDecoder
@@ -222,10 +249,18 @@ expectJson toMsg decoder =
                     Err ("URL inválida: " ++ url)
 
                 Http.Timeout_ ->
-                    Err "O servidor demorou demais para responder."
+                    Err semResposta
 
                 Http.NetworkError_ ->
                     Err "Não foi possível falar com o servidor. O backend está rodando?"
+
+
+{-| Mensagem para quando o backend não responde a tempo, ou quando o proxy do
+Vite não consegue falar com ele (502, 503 ou 504).
+-}
+semResposta : String
+semResposta =
+    "O backend não respondeu. Confira se ele está rodando (make backend) e o que aparece no terminal dele."
 
 
 {-| Extrai a mensagem do corpo de um erro. O `detail` chega em dois formatos:
@@ -253,4 +288,8 @@ mensagemDeErro status body =
             mensagem
 
         Err _ ->
-            "Erro no servidor (código " ++ String.fromInt status ++ ")."
+            if List.member status [ 502, 503, 504 ] then
+                semResposta
+
+            else
+                "Erro no servidor (código " ++ String.fromInt status ++ ")."

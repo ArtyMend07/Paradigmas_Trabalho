@@ -2,7 +2,7 @@ module Main exposing (main)
 
 {-| Interface gráfica do solver de Termo na Arquitetura Elm.
 
-Dois modos de operação:
+Três modos de operação:
 
   - `Assistente`: o jogador digita o palpite feito no Termo, define a cor de
     cada letra (clicando nas casas ou pressionando as teclas 1 a 5) e confirma
@@ -10,6 +10,8 @@ Dois modos de operação:
     palpite com o motivo.
   - `Automatico`: o jogador informa uma palavra de 5 letras e o solver mostra
     na grade 6×5 todos os passos até acertá-la.
+  - `Caos`: o servidor sorteia a palavra e, a cada 2 palpites, aplica um
+    efeito aleatório à partida (#14). Fica todo no módulo `PaginaCaos`.
 
 As chamadas HTTP ficam no módulo `Api.elm`. Cada resposta volta ao `update`
 como `Result String a` e vira um `Remoto` (`Chegou` ou `Falhou`).
@@ -19,10 +21,12 @@ como `Result String a` e vira um `Remoto` (`Chegou` ou `Falhou`).
 import Api exposing (Sugestao)
 import Browser
 import Browser.Events
+import Festa
 import Html exposing (Html, aside, button, div, footer, form, h1, header, input, kbd, label, main_, p, span, text)
 import Html.Attributes exposing (attribute, checked, class, classList, disabled, maxlength, placeholder, title, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput, onSubmit)
 import Json.Decode as Decode exposing (Decoder)
+import PaginaCaos
 import Teclado exposing (Tecla(..))
 import Termo exposing (Casa(..), Cor(..), Jogo, Palpite, Remoto(..))
 
@@ -55,6 +59,7 @@ type alias Flags =
 type Modo
     = Assistente
     | Automatico
+    | Caos
 
 
 {-| `pedido` identifica a consulta mais recente ao Prolog no modo assistente.
@@ -63,10 +68,16 @@ acaba. Cada resposta volta com o número do pedido que a gerou, e o `update`
 descarta as que não são do pedido atual. Sem isso, uma resposta lenta de uma
 partida anterior poderia sobrescrever a da partida atual: o número do palpite
 sozinho não basta, porque ele se repete de uma partida para a outra.
+
+`tremor` conta os Enter recusados seguidos. A linha em edição alterna entre
+duas classes de animação pela paridade dele, porque trocar o nome da animação é
+o que faz o navegador rodá-la de novo.
+
 -}
 type alias Model =
     { modo : Modo
     , jogo : Jogo
+    , tremor : Int
     , pedido : Int
     , candidatas : Remoto (List String)
     , sugestao : Remoto Sugestao
@@ -74,6 +85,7 @@ type alias Model =
     , autoplay : Remoto (List Palpite)
     , erroLocal : Maybe String
     , temaEscuro : Bool
+    , caos : PaginaCaos.Model
     }
 
 
@@ -81,6 +93,7 @@ init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { modo = Assistente
       , jogo = Termo.novoJogo
+      , tremor = 0
       , pedido = 0
       , candidatas = NaoPedido
       , sugestao = Carregando
@@ -88,6 +101,7 @@ init flags =
       , autoplay = NaoPedido
       , erroLocal = Nothing
       , temaEscuro = flags.darkTheme
+      , caos = PaginaCaos.inicial
       }
     , Api.sugerir [] (RecebeuSugestao 0)
     )
@@ -110,15 +124,31 @@ type Msg
     | RecebeuAutoplay String (Result String (List Palpite))
     | TemaAlterado Bool
     | ErroFechado
+    | CaosMsg PaginaCaos.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ModoAlterado novoModo ->
-            ( { model | modo = novoModo, erroLocal = Nothing }
-            , Cmd.none
+            let
+                ( caos, cmdCaos ) =
+                    if novoModo == Caos then
+                        PaginaCaos.aoEntrar model.caos
+
+                    else
+                        ( model.caos, Cmd.none )
+            in
+            ( { model | modo = novoModo, erroLocal = Nothing, caos = caos }
+            , Cmd.map CaosMsg cmdCaos
             )
+
+        CaosMsg caosMsg ->
+            let
+                ( caos, cmdCaos ) =
+                    PaginaCaos.update caosMsg model.caos
+            in
+            ( { model | caos = caos }, Cmd.map CaosMsg cmdCaos )
 
         TeclaPressionada tecla ->
             if model.modo /= Assistente then
@@ -158,6 +188,7 @@ update msg model =
             in
             ( { model
                 | jogo = Termo.novoJogo
+                , tremor = 0
                 , pedido = pedido
                 , candidatas = NaoPedido
                 , sugestao = Carregando
@@ -239,6 +270,7 @@ tratarTecla tecla model =
             ( { model
                 | jogo = Termo.digitar letra model.jogo
                 , erroLocal = Nothing
+                , tremor = 0
               }
             , Cmd.none
             )
@@ -247,14 +279,22 @@ tratarTecla tecla model =
             ( { model
                 | jogo = Termo.apagar model.jogo
                 , erroLocal = Nothing
+                , tremor = 0
               }
             , Cmd.none
             )
 
+        -- No assistente o clique na casa troca a cor, então não há cursor.
+        Esquerda ->
+            ( model, Cmd.none )
+
+        Direita ->
+            ( model, Cmd.none )
+
         Enter ->
             case Termo.confirmar model.jogo of
                 Err mensagem ->
-                    ( { model | erroLocal = Just mensagem }
+                    ( { model | erroLocal = Just mensagem, tremor = model.tremor + 1 }
                     , Cmd.none
                     )
 
@@ -264,6 +304,7 @@ tratarTecla tecla model =
                         -- pendentes do palpite anterior.
                         ( { model
                             | jogo = novoJogo
+                            , tremor = 0
                             , pedido = model.pedido + 1
                             , candidatas = NaoPedido
                             , sugestao = NaoPedido
@@ -282,6 +323,7 @@ tratarTecla tecla model =
                         in
                         ( { model
                             | jogo = novoJogo
+                            , tremor = 0
                             , pedido = pedido
                             , candidatas = Carregando
                             , sugestao = Carregando
@@ -348,6 +390,9 @@ subscriptions model =
 
         Automatico ->
             Sub.none
+
+        Caos ->
+            Sub.map CaosMsg PaginaCaos.subscriptions
 
 
 teclaDecoder : Decoder Msg
@@ -420,25 +465,35 @@ view model =
             ]
         , main_ [ class "app-main" ]
             [ div [ class "app-container game" ]
-                [ div [ class "area-jogo" ]
-                    [ viewGrade model
-                    , if model.modo == Assistente then
-                        Teclado.viewTeclado TeclaPressionada model.jogo
-
-                      else
-                        text ""
-                    ]
+                [ div [ class "area-jogo" ] (viewAreaDeJogo model)
                 , aside [ class "side-panel" ]
-                    ([ span [ class "panel-label" ] [ text "Modo" ]
-                     , viewSeletorModo model.modo
-                     , div [ class "message-area" ] [ viewMensagens model ]
-                     ]
+                    (span [ class "panel-label" ] [ text "Modo" ]
+                        :: viewSeletorModo model.modo
+                        :: viewAreaDeMensagens model
                         ++ viewPainelDoModo model
                     )
                 ]
             ]
         , viewRodape model.modo
         ]
+
+
+viewAreaDeJogo : Model -> List (Html Msg)
+viewAreaDeJogo model =
+    case model.modo of
+        Assistente ->
+            [ viewGrade model
+            , Teclado.viewTeclado TeclaPressionada model.jogo
+            , viewFesta (Termo.acertou model.jogo)
+            ]
+
+        Automatico ->
+            [ viewGrade model
+            , viewFesta (acertouNoAutoplay model.autoplay)
+            ]
+
+        Caos ->
+            [ Html.map CaosMsg (PaginaCaos.viewJogo model.caos) ]
 
 
 viewThemeToggle : Model -> Html Msg
@@ -462,6 +517,7 @@ viewSeletorModo atual =
     div [ class "modo-seletor" ]
         [ viewOpcaoModo atual Assistente "Assistente"
         , viewOpcaoModo atual Automatico "Automático"
+        , viewOpcaoModo atual Caos "Caos"
         ]
 
 
@@ -478,6 +534,25 @@ viewOpcaoModo atual modo rotulo =
         [ text rotulo ]
 
 
+viewFesta : Bool -> Html Msg
+viewFesta venceu =
+    if venceu then
+        Festa.confete
+
+    else
+        text ""
+
+
+acertouNoAutoplay : Remoto (List Palpite) -> Bool
+acertouNoAutoplay autoplay =
+    case autoplay of
+        Chegou passos ->
+            acertouNosPassos passos
+
+        _ ->
+            False
+
+
 viewGrade : Model -> Html Msg
 viewGrade model =
     let
@@ -489,11 +564,25 @@ viewGrade model =
                 Automatico ->
                     jogoDoAutoplay model.autoplay
 
+                Caos ->
+                    Termo.novoJogo
+
         podeEditar =
             model.modo == Assistente && not (Termo.terminou model.jogo)
+
+        jogadas =
+            List.length (Termo.historico jogoExibido)
+
+        animacao numero =
+            { emEdicao = numero == jogadas && podeEditar
+            , vitoria = numero == jogadas - 1 && Termo.acertou jogoExibido
+            , atrasoDeLinha = model.modo == Automatico
+            , tremor = model.tremor
+            , numero = numero
+            }
     in
     div [ class "grade", attribute "role" "grid", attribute "aria-label" "Grade do Termo" ]
-        (List.map (viewLinha podeEditar) (Termo.grade jogoExibido))
+        (List.indexedMap (\numero casas -> viewLinha podeEditar (animacao numero) casas) (Termo.grade jogoExibido))
 
 
 jogoDoAutoplay : Remoto (List Palpite) -> Jogo
@@ -506,9 +595,27 @@ jogoDoAutoplay estado =
             Termo.novoJogo
 
 
-viewLinha : Bool -> List Casa -> Html Msg
-viewLinha podeEditar casas =
-    div [ class "linha", attribute "role" "row" ]
+{-| No modo automático as linhas chegam todas de uma vez; o atraso por linha
+faz a revelação descer uma linha por vez, como se o solver estivesse jogando.
+-}
+viewLinha : Bool -> { emEdicao : Bool, vitoria : Bool, atrasoDeLinha : Bool, tremor : Int, numero : Int } -> List Casa -> Html Msg
+viewLinha podeEditar animacao casas =
+    div
+        ([ classList
+            [ ( "linha", True )
+            , ( "linha--vitoria", animacao.vitoria )
+            , ( "linha--tremor-a", animacao.emEdicao && animacao.tremor > 0 && modBy 2 animacao.tremor == 0 )
+            , ( "linha--tremor-b", animacao.emEdicao && modBy 2 animacao.tremor == 1 )
+            ]
+         , attribute "role" "row"
+         ]
+            ++ (if animacao.atrasoDeLinha then
+                    [ attribute "style" ("--linha:" ++ String.fromInt animacao.numero) ]
+
+                else
+                    []
+               )
+        )
         (List.indexedMap (viewCasa podeEditar) casas)
 
 
@@ -538,13 +645,14 @@ viewCasa podeEditar coluna casa =
                         ++ " para trocar a cor."
             in
             button
-                [ type_ "button"
-                , class ("casa casa--rascunho " ++ classeDaCor cor)
-                , title ("Clique ou aperte " ++ posicao ++ " para trocar a cor")
-                , attribute "aria-label" descricao
-                , disabled (not podeEditar)
-                , onClick (CorTrocada coluna)
-                ]
+                ([ type_ "button"
+                 , class ("casa casa--rascunho " ++ classeDaCor cor)
+                 , title ("Clique ou aperte " ++ posicao ++ " para trocar a cor")
+                 , attribute "aria-label" descricao
+                 , disabled (not podeEditar)
+                 ]
+                    ++ Teclado.apertarSemFoco (CorTrocada coluna)
+                )
                 [ text letraStr ]
 
         Confirmada letra cor ->
@@ -581,6 +689,18 @@ nomeDaCor cor =
 
         Cinza ->
             "cinza"
+
+
+{-| O modo caos mostra o próprio estado no painel, então não reserva a área de
+mensagens dos outros modos.
+-}
+viewAreaDeMensagens : Model -> List (Html Msg)
+viewAreaDeMensagens model =
+    if model.modo == Caos then
+        []
+
+    else
+        [ div [ class "message-area" ] [ viewMensagens model ] ]
 
 
 viewMensagens : Model -> Html Msg
@@ -643,6 +763,9 @@ erroRemotoDoModo model =
                 _ ->
                     Nothing
 
+        Caos ->
+            Nothing
+
 
 estaCarregando : Model -> Bool
 estaCarregando model =
@@ -652,6 +775,9 @@ estaCarregando model =
 
         Automatico ->
             model.autoplay == Carregando
+
+        Caos ->
+            False
 
 
 viewEstadoDaPartida : Model -> Html Msg
@@ -701,6 +827,9 @@ viewEstadoDaPartida model =
 
                 _ ->
                     text ""
+
+        Caos ->
+            text ""
 
 
 acertouNosPassos : List Palpite -> Bool
@@ -760,6 +889,9 @@ viewPainelDoModo model =
                     [ text "Informe uma palavra de 5 letras sem acentos para o Prolog jogar sozinho até acertá-la." ]
                 ]
             ]
+
+        Caos ->
+            List.map (Html.map CaosMsg) (PaginaCaos.viewPainel model.caos)
 
 
 viewSecaoSugestao : Model -> Html Msg
@@ -886,4 +1018,7 @@ viewRodape modo =
                 , kbd [] [ text "Enter" ]
                 , text " para ver o solver jogar sozinho."
                 ]
+
+            Caos ->
+                PaginaCaos.viewRodape
         )

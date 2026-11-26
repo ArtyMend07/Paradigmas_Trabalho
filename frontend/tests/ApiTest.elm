@@ -112,5 +112,9 @@ suite =
                 \_ ->
                     Api.mensagemDeErro 500 "Internal Server Error"
                         |> Expect.equal "Erro no servidor (código 500)."
+            , test "502 do proxy do Vite diz que o backend não respondeu" <|
+                \_ ->
+                    Api.mensagemDeErro 502 ""
+                        |> Expect.equal Api.semResposta
             ]
         ]

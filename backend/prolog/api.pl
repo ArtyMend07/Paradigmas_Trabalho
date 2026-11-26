@@ -1,4 +1,5 @@
-:- module(api, [api_candidatas/2, api_sugestao/3, api_autoplay/2]).
+:- module(api, [api_candidatas/2, api_sugestao/3, api_autoplay/2,
+                api_caos_nova/1, api_caos_palpite/3]).
 :- encoding(utf8).
 
 /** <module> Fachada do Prolog usada pelo Python (janus)
@@ -17,6 +18,7 @@ precise saber de onde os dados vieram.
 :- use_module(candidates).
 :- use_module(strategy).
 :- use_module(autoplay).
+:- use_module(caos).
 
 /* =========================================================================
    1. CARREGAMENTO DA BASE
@@ -102,3 +104,86 @@ api_autoplay(Palavra, Resultado) :-
     ->  maplist(palpite_strings, Passos, Resultado)
     ;   Resultado = nao_encontrada
     ).
+
+/* =========================================================================
+   4. MODO CAOS (#14)
+   ========================================================================= */
+
+%!  api_caos_nova(-Partida) is det.
+api_caos_nova(Partida) :-
+    nova_partida(Id),
+    partida(Id, Estado),
+    partida_json(Id, Estado, nenhum, Partida).
+
+%!  api_caos_palpite(+Id, +Palavra, -Resultado) is det.
+%
+%   Resultado é o dict da partida ou o átomo do erro (palavra_invalida,
+%   partida_inexistente, partida_encerrada), que o Python traduz em HTTP.
+api_caos_palpite(Id, Palavra, Resultado) :-
+    atom_string(Atomo, Palavra),
+    jogar(Id, Atomo, Jogada),
+    resultado_json(Id, Jogada, Resultado).
+
+resultado_json(_, erro(Motivo), Motivo).
+resultado_json(Id, ok(Estado, Evento), Partida) :-
+    partida_json(Id, Estado, Evento, Partida).
+
+partida_json(Id, Estado, Evento, _{ id: Id,
+                                    linhas: Linhas,
+                                    max_linhas: Max,
+                                    proximo: Proximo,
+                                    evento: EventoJson,
+                                    situacao: Situacao,
+                                    resposta: Revelada }) :-
+    Estado = estado(Resposta, LinhasEstado, Pendente, Max),
+    linhas_json(LinhasEstado, Linhas),
+    efeito_string(Pendente, Proximo),
+    evento_json(Evento, EventoJson),
+    situacao(Estado, Situacao),
+    resposta_revelada(Situacao, Resposta, Revelada).
+
+%   A linha jogada sob tempo_parado chega como oculta(_) até o palpite seguinte.
+linhas_json(Linhas, Json) :-
+    maplist(linha_json, Linhas, Json).
+
+linha_json(linha(Palavra, _, Efeito, Exibicao), Json) :-
+    (   Exibicao = oculta(_)
+    ->  Visivel = oculta
+    ;   Visivel = Exibicao
+    ),
+    atom_string(Palavra, PalavraS),
+    efeito_string(Efeito, EfeitoS),
+    exibicao_json(Visivel, PalavraS, EfeitoS, Json).
+
+exibicao_json(cores(Cores), Palavra, Efeito,
+              _{palavra: Palavra, efeito: Efeito, tipo: "cores", cores: CoresS, verdes: 0, amarelas: 0}) :-
+    maplist(atom_string, Cores, CoresS).
+exibicao_json(contagem(Verdes, Amarelas), Palavra, Efeito,
+              _{palavra: Palavra, efeito: Efeito, tipo: "contagem", cores: [], verdes: Verdes, amarelas: Amarelas}).
+exibicao_json(oculta, Palavra, Efeito,
+              _{palavra: Palavra, efeito: Efeito, tipo: "oculta", cores: [], verdes: 0, amarelas: 0}).
+
+efeito_string(nenhum, "") :- !.
+efeito_string(Efeito, Texto) :-
+    atom_string(Efeito, Texto).
+
+evento_json(nenhum, _{efeito: "", letra: "", presente: false}).
+evento_json(anuncio(_), _{efeito: "", letra: "", presente: false}).
+evento_json(instantaneo(Efeito), _{efeito: Texto, letra: "", presente: false}) :-
+    atom_string(Efeito, Texto).
+evento_json(dica(Letra, Presenca), _{efeito: "dica_de_letra", letra: Texto, presente: Presente}) :-
+    atom_string(Letra, Texto),
+    ( Presenca == presente -> Presente = true ; Presente = false ).
+
+situacao(Estado, "venceu") :-
+    acertou(Estado),
+    !.
+situacao(Estado, "perdeu") :-
+    encerrada(Estado),
+    !.
+situacao(_, "em_andamento").
+
+resposta_revelada("perdeu", Resposta, Texto) :-
+    !,
+    atom_string(Resposta, Texto).
+resposta_revelada(_, _, "").
