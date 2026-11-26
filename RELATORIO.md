@@ -99,7 +99,7 @@ Elm (navegador) --HTTP/JSON--> Python (FastAPI) --janus--> Prolog
 
 ### 5.2 Conceitos do paradigma lógico utilizados
 
-- [x] Fatos e regras como base de conhecimento: `word/1` (`words.pl:7`),
+- [x] Fatos e regras como base de conhecimento: `word/1` (`words.pl:3`),
   `resposta/1` (`autoplay.pl:8`), `efeito/2` (`caos.pl:44`), `so_na_tela/1`
   (`caos.pl:59`), `inverter_cor/2` (`caos.pl:174`) e `valor/2`
   (`strategy.pl:150`)
@@ -126,7 +126,7 @@ Elm (navegador) --HTTP/JSON--> Python (FastAPI) --janus--> Prolog
 - [x] Predicados de ordem superior: `maplist` em `consistente/2`
   (`candidates.pl:18`), `foldl` em `codigo/2` (`strategy.pl:143`),
   `include` em `contar/3` (`caos.pl:179`) e `forall` em `load_words/1`
-  (`words.pl:7`)
+  (`words.pl:11`)
 - [x] Outro: estado das partidas com `assertz/1` (`caos.pl:76`) e
   `retract/1` (`caos.pl:108`), e `setarg/3` no contador de
   `maior_grupo/4` (`strategy.pl:137`), por desempenho
@@ -381,7 +381,7 @@ partida encerrada ou palavra fora do formato (recusada pelo Pydantic).
 **Código reaproveitado.** Partimos do template do Sudoku e mantivemos a
 estrutura da integração Python (`backend/app/`), a configuração do frontend
 (Vite, Tailwind, daisyUI), o `Makefile` e o validador. Os arquivos `.pl` e
-os módulos Elm foram escritos pelo grupo.
+os módulos Elm foram escritos pelo grupo com uso de IA (ver a tabela abaixo).
 
 **Dados.** `backend/data/palavras.txt` foi gerada por
 `scripts/gerar_palavras.py` a partir do `palavras.txt` do repositório
@@ -398,7 +398,7 @@ documentação dos pacotes `elm/json` e `elm/http` e documentação do FastAPI.
 
 | Ferramenta | Para que foi usada | Como o grupo verificou o resultado |
 |------------|--------------------|------------------------------------|
-| Claude (Anthropic) | Escrita de código Prolog, Elm e Python, testes, revisão de PRs e rascunhos de texto | Testes plunit, pytest e elm-test, partidas jogadas no navegador e revisão de cada PR por outro integrante antes do merge |
+| Claude (Anthropic) | Escrita de código Prolog, Elm, Python e CSS, `Makefile` e scripts de geração dos dados, testes, revisão de PRs e rascunhos de texto | Testes plunit, pytest e elm-test, partidas jogadas no navegador e revisão de cada PR por outro integrante antes do merge |
 | Antigravity (Google) | Usada por Gabriel Fernando de Jesus Silva na interface, grade e estilo (`Main.elm` e `style-simples.css`, #10) | Revisão do PR #10 por outro integrante antes do merge |
 
 ## 12. Apresentação oral
