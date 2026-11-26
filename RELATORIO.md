@@ -408,11 +408,11 @@ documentação dos pacotes `elm/json` e `elm/http` e documentação do FastAPI.
 
 | Parte | Duração | Quem apresenta |
 |-------|:-------:|----------------|
-| Contexto e objetivo | 2 min | a definir |
-| Demonstração com modos assistente, automático e caos | 5 min | a definir |
-| Código Prolog | 3 min | a definir |
-| Código Elm | 3 min | a definir |
-| Limitações e aprendizados | 2 min | a definir |
+| Contexto e objetivo | 2 min | Lucas Mendonça Arruda |
+| Demonstração com modos assistente, automático e caos | 5 min | Gabriel Fernando de Jesus Silva e Artur Mendonça Arruda |
+| Código Prolog | 3 min | João Pedro Costa e Rafael Ferreira Leandro |
+| Código Elm | 3 min | Maria Clara Sena de Lima |
+| Limitações e aprendizados | 2 min | Lucas Avelar |
 
 ## 13. Reflexão sobre os paradigmas
 
