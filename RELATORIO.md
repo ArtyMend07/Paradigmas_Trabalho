@@ -1,341 +1,444 @@
-<!--
-  TEMPLATE DO RELATÓRIO DE ENTREGA: Paradigmas de Programação
-
-  Como usar:
-  - Copie este arquivo para a raiz do repositório do grupo, com o nome
-    RELATORIO.md, e preencha todas as seções.
-  - Os textos entre <!- - e - -> (como este) são instruções. Eles não
-    aparecem quando o arquivo é visualizado, mas APAGUE-OS antes de entregar.
-  - Troque tudo o que estiver entre [colchetes].
-  - Seja direto. Frases curtas e listas valem mais que parágrafos longos.
-    Um relatório típico cabe em 4 a 8 páginas.
-  - O relatório e o código são avaliados juntos. Sempre que possível,
-    aponte para o código (arquivo e linha) em vez de descrevê-lo. Os
-    critérios de avaliação estão em AVALIACAO.md.
-  - ANTES DE ENTREGAR, rode o validador na raiz do repositório:
-
-        uv run scripts/validar_entrega.py
-
-    Ele confere a FORMA do relatório (comentários apagados, colchetes
-    preenchidos, tabelas bem formadas, seções presentes, arquivos
-    existentes), não o conteúdo. Corrija todos os ERROS apontados.
--->
-
-# [Nome do projeto]
+# Termo (Prolog + Elm)
 
 ## 1. Identificação
 
-<!--
-  Os grupos têm de 3 a 7 pessoas (5, em média). A tabela abaixo tem 5
-  linhas: adicione ou remova linhas conforme o tamanho do seu grupo, aqui e
-  na seção 10. Os grupos podem misturar alunos das turmas das 14h e das 16h:
-  indique a turma de CADA integrante.
--->
-
 | Nome completo | Matrícula | Turma (14h/16h) | Usuário GitHub |
 |---------------|-----------|-----------------|----------------|
-| João Pedro Costa | 190030801 | 16h          | @johnaopedro   |
-| [Nome]        | [000000]  | [16h]           | [@usuario]     |
-| [Nome]        | [000000]  | [14h]           | [@usuario]     |
-| [Nome]        | [000000]  | [16h]           | [@usuario]     |
-| [Nome]        | [000000]  | [14h]           | [@usuario]     |
+| João Pedro Costa | 190030801 | 16h | @johnaopedro |
+| Lucas Mendonça Arruda | 231035464 | 16h | @lucasarruda9 |
+| Artur Mendonça Arruda | 231037337 | 16h | @ArtyMend07 |
+| Rafael Ferreira Leandro | 211041286 | 16h | @RafaelCLG0 |
+| Gabriel Fernando de Jesus Silva | 222022162 | 16h | @MMcLovin |
+| Maria Clara Sena de Lima | 231012281 | 16h | @mclarasenaa |
+| Lucas Avelar | 200067095 | 16h | @LucasAvelar2711 |
 
-- **Nome do projeto:** [o mesmo do título acima]
-- **Nome do grupo:** [um nome criativo, que não se repita na turma]
-  <!--
-    O nome do grupo identifica vocês nas planilhas de notas e na chamada
-    para a apresentação. Não dá para validar se é único, então caprichem:
-    "Grupo 3" vai colidir com o "Grupo 3" da outra turma.
-  -->
-- **Repositório:** [https://github.com/...]
-- **Commit ou tag entregue:** [`a1b2c3d` ou `v1.0`]
-  <!--
-    O avaliador vai olhar exatamente esta versão. Para criar uma tag:
-      git tag v1.0 && git push origin v1.0
-  -->
-- **Ponto de partida:** [template do Sudoku com ajustes | variante do Sudoku | outro jogo conhecido | remix original | jogo inventado]
-  <!--
-    Escolha UMA faixa. Ela define o ajuste de escopo da nota do grupo
-    (AVALIACAO.md, seção 1.5). O professor confirma a faixa na apresentação.
-  -->
-- **Slides da apresentação oral:** [`docs/apresentacao.pdf` | link externo | não há]
-  <!--
-    No final do semestre, cada grupo faz uma apresentação oral de 15
-    minutos. Slides são opcionais; se o grupo usar, coloque o arquivo no
-    repositório (de preferência em PDF) e indique o caminho aqui.
-  -->
+- **Nome do projeto:** Termo (Prolog + Elm)
+- **Nome do grupo:** Os Prologados
+- **Repositório:** https://github.com/ArtyMend07/Paradigmas_Trabalho
+- **Commit ou tag entregue:** `v1.0`
+- **Ponto de partida:** Remix original
+- **Slides da apresentação oral:** não há
 
 ## 2. Resumo
 
-<!--
-  De 3 a 5 linhas: o que o sistema faz, para quem, e qual problema o
-  Prolog resolve nele. Quem ler só esta seção deve entender o projeto.
--->
+Assistente e jogo de Termo. No modo assistente, o jogador informa as cores que recebeu no Termo e o Prolog filtra as palavras ainda possíveis e sugere o melhor palpite por minimax. No modo automático, o solver joga sozinho até acertar uma palavra escolhida. No modo caos, o Prolog guarda a partida e, a cada 2 palpites, sorteia um efeito aleatório, mas só entre os efeitos que não deixam a partida impossível.
 
-[Resumo do projeto.]
-
-![Captura de tela do sistema](docs/captura.png)
-<!-- Uma ou duas capturas de tela da interface. Crie a pasta docs/ se precisar. -->
+![Captura de tela do modo caos](docs/captura.png)
 
 ## 3. Como executar
 
-<!--
-  Teste estas instruções numa máquina "limpa" (ou peça a um colega de
-  outro grupo). Se o avaliador não conseguir rodar o sistema, o resto do
-  trabalho não pode ser verificado.
--->
-
 **Requisitos** (com as versões que o grupo usou):
 
-- SWI-Prolog [9.x]
-- Node.js [2x.x]
-- [uv / Python 3.x, se usar]
+- SWI-Prolog 11.0.1
+- Node.js 20.19.5
+- uv
+- `python3-dev` (Debian/Ubuntu), para compilar o `janus-swi`
+
+O `apt` do Ubuntu 24.04 traz o SWI-Prolog 9.0.4, antigo demais para o
+`janus-swi`. Instale pelo PPA, removendo antes os pacotes antigos, com os
+comandos abaixo.
+
+```sh
+sudo apt remove swi-prolog swi-prolog-core swi-prolog-core-packages swi-prolog-doc swi-prolog-nox
+sudo add-apt-repository ppa:swi-prolog/stable
+sudo apt update
+sudo apt install swi-prolog
+```
 
 **Instalação e execução:**
 
 ```sh
-[comandos exatos, na ordem]
+make install    # dependências do backend (uv) e do frontend (npm)
+make dev        # sobe backend (porta 8000) e frontend (porta 5173)
+```
+
+Abra http://localhost:5173. Se o `janus-swi` foi instalado antes de
+atualizar o SWI-Prolog, recompile-o com o comando abaixo.
+
+```sh
+cd backend
+uv sync --reinstall-package janus-swi --no-binary-package janus-swi --no-cache
 ```
 
 **Testes:**
 
 ```sh
-[comando para rodar os testes, se houver]
+make test
 ```
 
-**Testado em:** [Linux / Windows / macOS, navegador]
+**Testado em:** Linux (Ubuntu 24.04 e container Docker da imagem `swipl:stable`), Google Chrome
 
 ## 4. Arquitetura
 
-<!--
-  Um diagrama simples (pode ser em texto) mostrando as partes do sistema e
-  como elas se comunicam. Diga em uma frase a responsabilidade de cada parte.
--->
-
 ```
-[Elm] --HTTP/JSON--> [Python] --janus--> [Prolog]
+Elm (navegador) --HTTP/JSON--> Python (FastAPI) --janus--> Prolog
 ```
 
 | Parte  | Responsabilidade | Arquivos principais |
 |--------|------------------|---------------------|
-| Prolog | [...]            | [`backend/prolog/...`] |
-| Elm    | [...]            | [`frontend/src/...`]   |
-| Python | [só integração]  | [`backend/app/...`]    |
+| Prolog | Feedback de cores, filtro de candidatas, sugestão por minimax, autoplay e as regras e o estado das partidas do modo caos | `backend/prolog/feedback.pl`, `candidates.pl`, `strategy.pl`, `autoplay.pl`, `caos.pl`, `api.pl` |
+| Elm    | Interface, estado da tela, teclado, chamadas HTTP com decoders próprios e os efeitos visuais do modo caos | `frontend/src/Main.elm`, `Termo.elm`, `Teclado.elm`, `Api.elm`, `Caos.elm`, `CaosApi.elm`, `PaginaCaos.elm`, `Rascunho.elm`, `Festa.elm` |
+| Python | Expõe os predicados de `api.pl` como rotas HTTP e valida o formato da entrada | `backend/app/main.py`, `backend/app/prolog.py` |
 
 ## 5. Parte em Prolog
 
 ### 5.1 Predicados principais
 
-<!--
-  Os predicados mais importantes, com o local no código. Use a notação
-  nome/aridade e indique entradas (+) e saídas (-), como na documentação
-  do SWI-Prolog.
--->
-
 | Predicado | Local | O que faz |
 |-----------|-------|-----------|
-| [`resolver(+Entrada, -Saida)`] | [`arquivo.pl:42`] | [...] |
-| [...] | [...] | [...] |
+| `feedback(+Palpite, +Resposta, ?Cores)` | `backend/prolog/feedback.pl:9` | Calcula as cores, ou confere quando `Cores` já vem preenchido |
+| `consistent(+Palavra, +Historico)` | `backend/prolog/candidates.pl:12` | A palavra é compatível com o histórico |
+| `candidates(+Historico, -Palavras)` | `backend/prolog/candidates.pl:25` | Palavras da base compatíveis com o histórico |
+| `best_guess(+Historico, -Palavra, -Motivo)` | `backend/prolog/strategy.pl:44` | Melhor palpite por minimax, com o motivo |
+| `maior_grupo(+Palpite, +Candidatas, +Limite, -Maior)` | `backend/prolog/strategy.pl:124` | Pior caso de um palpite, falhando ao passar do limite |
+| `autoplay(+Resposta, -Passos)` | `backend/prolog/autoplay.pl:26` | Joga com `best_guess/3` até acertar |
+| `nova_partida(-Id)` | `backend/prolog/caos.pl:70` | Sorteia a resposta e cria uma partida do modo caos |
+| `jogar(+Id, +Palavra, -Resultado)` | `backend/prolog/caos.pl:94` | Registra o palpite e aplica os efeitos |
+| `efeito_possivel(?Efeito, +Estado)` | `backend/prolog/caos.pl:218` | Efeitos que não deixam a partida sem solução |
+| `aplicar_efeito(+Efeito, +Estado, -Novo, -Evento)` | `backend/prolog/caos.pl:243` | Aplica o efeito sorteado |
 
 ### 5.2 Conceitos do paradigma lógico utilizados
 
-<!--
-  Marque o que o projeto usa DE FATO e indique onde. Não é preciso usar
-  tudo; é preciso explicar bem o que foi usado.
--->
-
-- [ ] Fatos e regras como base de conhecimento: [onde]
-- [ ] Unificação e casamento de padrões: [onde]
-- [ ] Recursão (inclusive sobre listas): [onde]
-- [ ] Backtracking e múltiplas soluções: [onde]
-- [ ] `findall/3`, `bagof/3`, `setof/3` ou similares: [onde]
-- [ ] Corte (`!`) ou negação (`\+`), e por que foram necessários: [onde]
-- [ ] Programação por restrições (CLP(FD) ou outra): [onde]
-- [ ] Predicados de ordem superior (`maplist`, `foldl`, `include`...): [onde]
-- [ ] Outro: [...]
+- [x] Fatos e regras como base de conhecimento: `word/1` (`words.pl:3`),
+  `resposta/1` (`autoplay.pl:8`), `efeito/2` (`caos.pl:44`), `so_na_tela/1`
+  (`caos.pl:59`), `inverter_cor/2` (`caos.pl:174`) e `valor/2`
+  (`strategy.pl:150`)
+- [x] Unificação e casamento de padrões: `verdes/4` (`feedback.pl:18`), em
+  que a mesma variável `Letra` nas duas listas exige letras iguais, e
+  `estado(R, Linhas, _, Max)` nas cabeças de `aplicar_efeito/4`
+  (`caos.pl:243`)
+- [x] Recursão (inclusive sobre listas): `verdes/4`, `amarelos/3`
+  (`feedback.pl:27`), `consistente/2` (`candidates.pl:16`), `joga/3`
+  (`autoplay.pl:31`), `conta/6` (`strategy.pl:130`) e `melhor/6`
+  (`strategy.pl:109`)
+- [x] Backtracking e múltiplas soluções: `candidates/2`
+  (`candidates.pl:25`), que gera com `word/1` e testa com `consistent/2`, e
+  `efeito_possivel/2` (`caos.pl:218`)
+- [x] `findall/3`, `bagof/3`, `setof/3` ou similares: `candidates/2`,
+  `palpites/3` (`strategy.pl:87`), `nova_partida/1` (`caos.pl:70`) e
+  `sortear_efeito/2` (`caos.pl:212`)
+- [x] Corte (`!`) ou negação (`\+`), e por que foram necessários: `!` em
+  `verdes/4`, para uma letra verde não ser testada como amarela;
+  `\+ memberchk` em `joga/3` (`autoplay.pl:34`), contra laço infinito; e
+  `\+ word(Palpite)` em `jogar_/3` (`caos.pl:105`), para recusar palavras
+  fora da base
+- [ ] Programação por restrições (CLP(FD) ou outra)
+- [x] Predicados de ordem superior: `maplist` em `consistente/2`
+  (`candidates.pl:18`), `foldl` em `codigo/2` (`strategy.pl:143`),
+  `include` em `contar/3` (`caos.pl:179`) e `forall` em `load_words/1`
+  (`words.pl:11`)
+- [x] Outro: estado das partidas com `assertz/1` (`caos.pl:76`) e
+  `retract/1` (`caos.pl:108`), e `setarg/3` no contador de
+  `maior_grupo/4` (`strategy.pl:137`), por desempenho
 
 ### 5.3 Trecho em destaque
 
-<!--
-  Escolha o trecho de Prolog de que o grupo mais se orgulha (ou o mais
-  difícil). Cole o código e explique como ele funciona: o que é declarado,
-  como o Prolog chega à resposta, e por que essa solução é "lógica" e não
-  uma tradução de um algoritmo imperativo.
--->
-
 ```prolog
-[trecho]
+% backend/prolog/candidates.pl
+consistent(Candidata, Historico) :-
+    consistente(Historico, Candidata).
+
+consistente([], _).
+consistente([[Palpite, Cores]|Resto], Candidata) :-
+    maplist(como_atomo, Cores, CoresAtomos),
+    feedback(Palpite, Candidata, CoresAtomos),
+    consistente(Resto, Candidata).
+
+candidates(Historico, Palavras) :-
+    findall(W, ( word(W), consistent(W, Historico) ), Palavras).
 ```
 
-[Explicação.]
+Uma palavra é candidata se, para cada palpite do histórico, ela teria
+produzido as cores que o jogador viu.
+
+- `feedback/3` é chamado com `Cores` já preenchido. Em vez de calcular, ele
+  testa. Se as cores não unificam, ele falha e a palavra é descartada. Não
+  existe um predicado separado para conferir.
+- `candidates/2` é gerar e testar. `word(W)` gera as palavras por
+  backtracking, `consistent/2` filtra e `findall/3` junta o resultado. Não
+  há laço nem lista acumulada escritos à mão.
 
 ## 6. Parte em Elm
 
 ### 6.1 Modelo e mensagens
 
-<!--
-  Os tipos centrais do programa: o Model, o tipo Msg e os custom types do
-  domínio. Explique as escolhas: por que um custom type e não um Bool, por
-  que Maybe ou Result, etc.
--->
-
 ```elm
-[type alias Model = ...]
-[type Msg = ...]
+-- frontend/src/Main.elm
+type Modo
+    = Assistente
+    | Automatico
+    | Caos
+
+type alias Model =
+    { modo : Modo
+    , jogo : Jogo
+    , tremor : Int
+    , pedido : Int
+    , candidatas : Remoto (List String)
+    , sugestao : Remoto Sugestao
+    , palavraAutoplay : String
+    , autoplay : Remoto (List Palpite)
+    , erroLocal : Maybe String
+    , temaEscuro : Bool
+    , caos : PaginaCaos.Model
+    }
+
+type Msg
+    = ModoAlterado Modo
+    | TeclaPressionada Tecla
+    | CorTrocada Int
+    | PalavraEscolhida String
+    | NovoJogo
+    | RecebeuCandidatas Int (Result String (List String))
+    | RecebeuSugestao Int (Result String Sugestao)
+    | PalavraAutoplayAlterada String
+    | AutoplaySolicitado
+    | RecebeuAutoplay String (Result String (List Palpite))
+    | TemaAlterado Bool
+    | ErroFechado
+    | CaosMsg PaginaCaos.Msg
+
+-- frontend/src/Termo.elm
+type Cor = Verde | Amarelo | Cinza
+
+type Jogo
+    = Jogo { palpites : List Palpite, rascunho : List ( Char, Cor ) }
+
+type Casa
+    = Vazia
+    | Rascunho Char Cor
+    | Confirmada Char Cor
+
+type Remoto a
+    = NaoPedido
+    | Carregando
+    | Chegou a
+    | Falhou String
+
+-- frontend/src/Caos.elm
+type Exibicao
+    = Cores (List Cor)
+    | Contagem { verdes : Int, amarelas : Int }
+    | Oculta
+
+type Situacao
+    = EmAndamento
+    | Venceu
+    | Perdeu String
+
+-- frontend/src/Rascunho.elm
+type Rascunho
+    = Rascunho { casas : List (Maybe Char), cursor : Int }
 ```
 
-[Explicação das escolhas.]
+- **`Remoto a`** substitui `Bool` + `Maybe` dado + `Maybe` erro, então não
+  existe "carregando e com erro" ao mesmo tempo.
+- **`Casa`** não deixa uma casa vazia ter cor, e `Rascunho` e `Confirmada`
+  dizem se a cor ainda pode ser trocada.
+- **`Jogo`** é opaco (exportado sem construtor), então só `Termo.elm` altera
+  uma partida.
+- **`Rascunho`** (o tipo do modo caos) também é opaco. As funções do módulo
+  mantêm sempre 5 casas e o cursor entre 0 e 5, e `Rascunho.palavra` só
+  devolve `Just` com as 5 casas preenchidas.
+- **`Perdeu String`** guarda a resposta, que só existe quando o jogador
+  perdeu.
+- **`Exibicao`** representa as três formas de mostrar uma linha no modo caos.
+- **`pedido`** numera as consultas, e o `update` descarta respostas
+  atrasadas de partidas anteriores.
+- **`tremor`** conta os Enter recusados seguidos. A view alterna duas
+  classes de animação pela paridade dele para a linha tremer de novo.
+- **`CaosMsg`** liga o `Main` ao modo caos, que tem `Model`, `Msg` e
+  `update` próprios em `PaginaCaos.elm`.
 
 ### 6.2 Conceitos do paradigma funcional utilizados
 
-- [ ] Arquitetura Elm (Model, update, view): [onde]
-- [ ] Custom types e `case` exaustivo: [onde]
-- [ ] `Maybe` e `Result` no lugar de null e exceções: [onde]
-- [ ] Funções de ordem superior e aplicação parcial: [onde]
-- [ ] Composição (`|>`, `>>`): [onde]
-- [ ] Decoders e encoders JSON: [onde]
-- [ ] Comandos e subscriptions (efeitos controlados): [onde]
-- [ ] Imutabilidade e atualização de records: [onde]
-- [ ] Outro: [...]
+- [x] Arquitetura Elm (Model, update, view): `Main.elm`, `PaginaCaos.elm`
+- [x] Custom types e `case` exaustivo: `Termo.elm` (`Cor`, `Casa`, `Jogo`,
+  `Remoto`), `Caos.elm` (`Efeito`, `Exibicao`, `Situacao`), `Teclado.elm`
+  (`Tecla`)
+- [x] `Maybe` e `Result` no lugar de null e exceções: `Result String a` em
+  `Api.elm` e `CaosApi.elm`, `Maybe Efeito` em `Caos.elm` e
+  `Rascunho.palavra : Rascunho -> Maybe String`
+- [x] Funções de ordem superior e aplicação parcial: `viewTecladoCom`
+  (`Teclado.elm`) recebe `Char -> Maybe Cor` e `Char -> Bool`
+- [x] Composição (`|>`, `>>`): `String.toList >> List.map ...`
+  (`Teclado.elm`) e `|>` nos decoders
+- [x] Decoders e encoders JSON: `Api.elm`, `CaosApi.elm` (`Decode.andThen`,
+  `Decode.oneOf`)
+- [x] Comandos e subscriptions (efeitos controlados): `Http.post`,
+  `Random.generate` e `Process.sleep` em `PaginaCaos.elm`, e
+  `Browser.Events.onKeyDown`
+- [x] Imutabilidade e atualização de records: `{ model | ... }` no `update`
+- [x] Outro: tipos opacos (`Jogo`, `Rascunho`) e testes com elm-test
+  (`frontend/tests/`)
 
 ### 6.3 Trecho em destaque
 
 ```elm
-[trecho]
+-- frontend/src/CaosApi.elm
+exibicaoDecoder : Decoder Exibicao
+exibicaoDecoder =
+    Decode.field "tipo" Decode.string
+        |> Decode.andThen
+            (\tipo ->
+                case tipo of
+                    "cores" ->
+                        Decode.map Cores (Decode.field "cores" (Decode.list corDecoder))
+
+                    "contagem" ->
+                        Decode.map2 (\verdes amarelas -> Contagem { verdes = verdes, amarelas = amarelas })
+                            (Decode.field "verdes" Decode.int)
+                            (Decode.field "amarelas" Decode.int)
+
+                    "oculta" ->
+                        Decode.succeed Oculta
+
+                    _ ->
+                        Decode.fail ("Exibição desconhecida: " ++ tipo)
+            )
 ```
 
-[Explicação.]
+O JSON de cada linha sempre traz `tipo`, `cores`, `verdes` e `amarelas`, o
+que permite combinações sem sentido (`"oculta"` com cinco cores).
+
+- `Decode.andThen` lê o `tipo` e escolhe o decoder do resto do objeto.
+- Cada caso lê só os campos que usa e produz um construtor de `Exibicao`.
+- Um `tipo` desconhecido vira `Decode.fail`, que chega à tela como `Err`.
+
+Depois do decoder, o programa só vê `Exibicao`, e o compilador exige que a
+`view` trate os três casos.
 
 ## 7. Integração
 
-<!--
-  Curto: a parte Python não é avaliada. Liste as rotas ou a forma de
-  comunicação e o formato dos dados trocados. Se o grupo não usou Python,
-  explique como Elm e Prolog se comunicam.
--->
-
 | Rota / chamada | Entrada | Saída | Predicado Prolog |
 |----------------|---------|-------|------------------|
-| [`POST /api/...`] | [...] | [...] | [`...`] |
+| `POST /api/candidatas` | `{"historico": [["serao", ["gray", ...]], ...]}` | `{"palavras": [...]}` | `api_candidatas/2` |
+| `POST /api/sugestao` | `{"historico": [...]}` | `{"palavra": "...", "motivo": "..."}` | `api_sugestao/3` |
+| `POST /api/autoplay` | `{"palavra": "carro"}` | `{"passos": [["raiao", [...]], ...]}` | `api_autoplay/2` |
+| `POST /api/caos/nova` | corpo vazio | a partida (`id`, `linhas`, `max_linhas`, `proximo`, `evento`, `situacao`, `resposta`) | `api_caos_nova/1` |
+| `POST /api/caos/palpite` | `{"id": 1, "palavra": "carro"}` | a partida atualizada | `api_caos_palpite/3` |
+
+Os erros voltam como `{"detail": "..."}`, com status 404 para partida
+inexistente e 422 para palavra fora da base, histórico sem candidatas,
+partida encerrada ou palavra fora do formato (recusada pelo Pydantic).
 
 ## 8. Testes e validação
 
-<!--
-  Como o grupo sabe que o sistema funciona? Testes automatizados (plunit,
-  pytest, elm-test), roteiros de teste manual, casos de borda verificados.
--->
-
-- [O que foi testado e como.]
-- [Casos de borda considerados.]
+- **Testes automatizados**, rodados com `make test`
+  - plunit em `backend/prolog/test_*.pl`: 72 testes (feedback 11,
+    candidates 12, strategy 12, autoplay 13 e caos 24)
+  - pytest em `backend/tests/` (`test_api.py` e `test_caos.py`): 21 testes
+  - elm-test em `frontend/tests/` (`ApiTest.elm`, `CaosTest.elm` e
+    `RascunhoTest.elm`): 29 testes
+- **Casos de borda**
+  - letras repetidas no feedback (`selectchk/3` em `amarelos/3`,
+    `feedback.pl:31`)
+  - histórico sem candidatas (422)
+  - palavra fora da base ou do formato (422)
+  - partida do caos inexistente (404) ou encerrada (422)
+  - respostas HTTP atrasadas (descartadas pelo `pedido`)
+  - efeitos que deixariam a partida sem solução não são sorteados
+  - o solver acerta as 2.000 respostas de `respostas.txt` em até 5
+    tentativas, com média de 3,61 (75 em 2, 761 em 3, 1.028 em 4 e 136 em
+    5), medido com `orcamento(300_000)`. O teste
+    `acerta_em_ate_6_tentativas` (`test_strategy.pl`) confere 11 dessas
+    palavras
 
 ## 9. Limitações e problemas conhecidos
 
-<!--
-  Seja honesto. Um problema conhecido e bem descrito vale mais que um
-  problema escondido que o avaliador descobre sozinho.
--->
-
-- [Limitação ou bug conhecido, e em que situação acontece.]
-- [O que o grupo faria com mais tempo.]
+- As partidas do modo caos ficam na memória do Prolog, então somem quando o
+  servidor reinicia, e só as 1.000 mais recentes são mantidas
+  (`max_partidas_guardadas/1`, `caos.pl:36`).
+- Com muitas candidatas, `orcamento/1` (`strategy.pl:38`) limita o minimax,
+  e o palpite pode não ser o ótimo.
+- A abertura (`raiao`) é fixa, e mudar a base exige recalculá-la.
+- Nos quatro efeitos só visuais do caos, as casas e teclas afetadas são
+  sorteadas no Elm, não no Prolog.
+- O modo caos tem 13 dos 21 efeitos planejados na issue #14. A issue #19
+  (rever os efeitos de teclado que não atrapalham) está aberta: a explosão
+  já apaga a cor também na grade, e a limpeza do teclado ainda não foi
+  revista.
+- No modo assistente, depois de clicar num botão do painel, o botão fica
+  com o foco e o Enter físico não confirma o palpite até o jogador clicar
+  fora dele.
+- O `janus-swi` não compila no Windows sem o compilador do Visual Studio.
+  No Windows, o grupo rodou o backend num container Docker.
 
 ## 10. Contribuição de cada integrante
 
-<!--
-  O que cada pessoa fez. Deve ser coerente com o histórico de commits do
-  repositório. Todos os integrantes precisam concordar com esta tabela.
--->
-
 | Integrante | Principais contribuições |
 |------------|--------------------------|
-| [Nome]     | [...] |
-| [Nome]     | [...] |
-| [Nome]     | [...] |
-| [Nome]     | [...] |
-| [Nome]     | [...] |
-
-<!--
-  Além desta tabela, que é do grupo, cada integrante entrega uma avaliação
-  360 graus individual no SEU repositório do GitHub Classroom, em
-  avaliacao-360/<matricula>.md. Veja o modelo em avaliacao-360/TEMPLATE.md.
--->
+| Artur Mendonça Arruda | (@ArtyMend07) Base de palavras e `feedback/3` (#11), modo caos com `caos.pl`, rotas e tela (#15), cursor, animações e avisos da interface (#18), ajuste do orçamento do minimax (#20), issues e revisão dos PRs |
+| João Pedro Costa | (@johnaopedro) Filtro de candidatas, respostas e autoplay (#9) e autoplay usando `strategy.pl` (#17) |
+| Rafael Ferreira Leandro | (@RafaelCLG0) Sugestão de palpite por minimax em `strategy.pl` (#13) |
+| Lucas Mendonça Arruda | (@lucasarruda9) Tipos, regras do jogo e teclado em `Termo.elm` e `Teclado.elm` (#8), os quatro efeitos visuais do modo caos (tiroteio, letras apagadas, explosão e limpeza do teclado) e o relatório |
+| Gabriel Fernando de Jesus Silva | (@MMcLovin) Interface, grade e estilo em `Main.elm` e `style-simples.css` (#10) |
+| Maria Clara Sena de Lima | (@mclarasenaa) Requisições HTTP e decoders em `Api.elm`, com testes elm-test (#16), e revisão do #15 com correções (respostas atrasadas, efeitos depois de voltar no tempo, erro do backend e tempo limite das requisições) |
+| Lucas Avelar | (@LucasAvelar2711) Integração Python e Prolog, com rotas FastAPI, janus e pytest (#12) |
 
 ## 11. Fontes, código de terceiros e uso de IA
 
-<!--
-  Declare tudo o que não foi escrito pelo grupo. Declarar não tira pontos;
-  deixar de declarar pode anular o trabalho.
--->
+**Código reaproveitado.** Partimos do template do Sudoku e mantivemos a
+estrutura da integração Python (`backend/app/`), a configuração do frontend
+(Vite, Tailwind, daisyUI), o `Makefile` e o validador. Os arquivos `.pl` e
+os módulos Elm foram escritos pelo grupo com uso de IA (ver a tabela abaixo).
 
-**Código reaproveitado.** [Ex.: "Partimos do template do Sudoku. Mantivemos
-a integração Python e a estrutura do frontend; o arquivo `x.pl` e os
-módulos `Y.elm` e `Z.elm` foram escritos pelo grupo."]
+**Dados.** `backend/data/palavras.txt` foi gerada por
+`scripts/gerar_palavras.py` a partir do `palavras.txt` do repositório
+https://github.com/pythonprobr/palavras, com licença MPL 2.0
+(`backend/data/LICENSE-palavras`). `backend/data/respostas.txt` foi gerada
+por `scripts/gerar_respostas.py` com a biblioteca `wordfreq`.
 
-**Referências.** [Livros, documentação, tutoriais, repositórios consultados.]
+**Referências.** Documentação do SWI-Prolog e do janus, guia do Elm,
+documentação dos pacotes `elm/json` e `elm/http` e documentação do FastAPI.
 
 **Uso de ferramentas de IA.**
 
-- **Faixa de uso no código:** [nenhum | pontual | auxiliar | intensivo]
-  <!--
-    nenhum: não usou. pontual: autocompletar, dúvidas, explicar erros.
-    auxiliar: trechos gerados pela IA e revisados pelo grupo. intensivo: a
-    IA escreveu a maior parte do código. Veja o efeito em AVALIACAO.md,
-    seção 1.5. Não declarar anula o trabalho; declarar não tira pontos.
-  -->
+- **Faixa de uso no código:** intensivo
 
 | Ferramenta | Para que foi usada | Como o grupo verificou o resultado |
 |------------|--------------------|------------------------------------|
-| [Nome ou "nenhuma"] | [...] | [...] |
+| Claude (Anthropic) | Escrita de código Prolog, Elm, Python e CSS, `Makefile` e scripts de geração dos dados, testes, revisão de PRs e rascunhos de texto | Testes plunit, pytest e elm-test, partidas jogadas no navegador e revisão de cada PR por outro integrante antes do merge |
+| Antigravity (Google) | Usada por Gabriel Fernando de Jesus Silva na interface, grade e estilo (`Main.elm` e `style-simples.css`, #10) | Revisão do PR #10 por outro integrante antes do merge |
 
 ## 12. Apresentação oral
 
-<!--
-  A apresentação tem 15 minutos e acontece no final do semestre. Uma
-  divisão que costuma funcionar: 2 min de contexto, 5 min de demonstração
-  do sistema funcionando, 6 min mostrando o código Prolog e Elm mais
-  interessante, 2 min de limitações e aprendizados. Todos os integrantes
-  devem falar.
-
-  Preencha esta seção antes da apresentação.
--->
-
-- **Slides:** [mesmo caminho indicado na seção 1, ou "não há"]
+- **Slides:** não há
 - **Roteiro:**
 
 | Parte | Duração | Quem apresenta |
 |-------|:-------:|----------------|
-| [Contexto e objetivo] | [2 min] | [Nome] |
-| [Demonstração] | [5 min] | [Nome] |
-| [Código Prolog] | [3 min] | [Nome] |
-| [Código Elm] | [3 min] | [Nome] |
-| [Limitações e aprendizados] | [2 min] | [Nome] |
+| Contexto e objetivo | 2 min | Lucas Mendonça Arruda |
+| Demonstração com modos assistente, automático e caos | 5 min | Gabriel Fernando de Jesus Silva e Artur Mendonça Arruda |
+| Código Prolog | 3 min | João Pedro Costa e Rafael Ferreira Leandro |
+| Código Elm | 3 min | Maria Clara Sena de Lima |
+| Limitações e aprendizados | 2 min | Lucas Avelar |
 
 ## 13. Reflexão sobre os paradigmas
 
-<!--
-  De 1 a 3 parágrafos. Perguntas que podem ajudar:
-  - O que ficou mais simples em Prolog do que seria numa linguagem
-    imperativa? E o que ficou mais difícil?
-  - O que o compilador do Elm impediu que desse errado?
-  - Como a forma de pensar mudou entre as duas linguagens?
--->
+Em Prolog, o filtro de candidatas saiu curto porque o mesmo `feedback/3`
+calcula as cores e também confere cores já dadas. `candidates/2` só gera
+palavras com `word/1` e deixa o `feedback/3` falhar nas que não servem. A
+parte difícil foi o desempenho do minimax em `strategy.pl`. Para responder
+em menos de 2 segundos usamos `setarg/3` num contador, a contagem de
+`conta/6` interrompida assim que um grupo passa do limite, um teto de
+chamadas (`orcamento/1`) e uma abertura calculada antes. Essas decisões
+falam da ordem de execução, coisa que o resto do código não precisou
+fazer. O estado das partidas do modo caos (`assertz/1` e `retract/1`)
+também fugiu do estilo declarativo do resto.
 
-[Reflexão.]
+No Elm, o compilador apontou cada lugar a mudar quando o modo caos ganhou
+efeitos novos: um construtor a mais em `Efeito` obriga a tratar o caso em
+`nome`, `descricao` e `codigo` (`Caos.elm`), e o código não compila até
+isso ser feito. O `Remoto a` e o tipo opaco `Rascunho` tiraram da tela
+estados que antes dependiam de `Bool` soltos. O compilador não pegou o
+problema das respostas HTTP fora de ordem: uma resposta atrasada de uma
+partida antiga sobrescrevia a nova, e isso foi corrigido com o contador
+`pedido` nos dois modos.
 
----
-
-<!--
-  CHECKLIST ANTES DE ENTREGAR (apague esta seção depois de conferir)
-
-  - [ ] `uv run scripts/validar_entrega.py` termina sem erros.
-  - [ ] Todos os integrantes, com matrícula e turma, estão na seção 1.
-  - [ ] O commit ou tag da seção 1 existe no repositório e é a versão final.
-  - [ ] As instruções da seção 3 funcionam numa máquina sem nada instalado
-        além dos requisitos listados.
-  - [ ] Os locais indicados (arquivo:linha) conferem com o commit entregue.
-  - [ ] As seções 10 e 11 foram revisadas por todo o grupo.
-  - [ ] Se há slides, o arquivo está no repositório e o caminho da seção 1
-        está certo.
-  - [ ] Cada integrante entregou a própria avaliação 360 graus no seu
-        repositório individual, em avaliacao-360/<matricula>.md.
-  - [ ] Nenhum texto entre [colchetes] ou comentário de instrução sobrou.
--->
+Entre as duas linguagens, a diferença mais visível no código foi onde fica
+o estado. No Prolog, a regra do caos olha o estado da partida e diz quais
+efeitos são possíveis (`efeito_possivel/2`). No Elm, cada mudança de tela
+passa por uma mensagem no `update`, e o efeito visual de um evento do
+Prolog (furos do tiroteio, letras explodidas) vira dado no `Model` com
+duração controlada pelo próprio Elm.
