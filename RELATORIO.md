@@ -90,7 +90,7 @@ Elm (navegador) --HTTP/JSON--> Python (FastAPI) --janus--> Prolog
 | `consistent(+Palavra, +Historico)` | `backend/prolog/candidates.pl:12` | A palavra é compatível com o histórico |
 | `candidates(+Historico, -Palavras)` | `backend/prolog/candidates.pl:25` | Palavras da base compatíveis com o histórico |
 | `best_guess(+Historico, -Palavra, -Motivo)` | `backend/prolog/strategy.pl:44` | Melhor palpite por minimax, com o motivo |
-| `maior_grupo(+Palpite, +Candidatas, +Limite, -Maior)` | `backend/prolog/strategy.pl:125` | Pior caso de um palpite, falhando ao passar do limite |
+| `maior_grupo(+Palpite, +Candidatas, +Limite, -Maior)` | `backend/prolog/strategy.pl:124` | Pior caso de um palpite, falhando ao passar do limite |
 | `autoplay(+Resposta, -Passos)` | `backend/prolog/autoplay.pl:26` | Joga com `best_guess/3` até acertar |
 | `nova_partida(-Id)` | `backend/prolog/caos.pl:70` | Sorteia a resposta e cria uma partida do modo caos |
 | `jogar(+Id, +Palavra, -Resultado)` | `backend/prolog/caos.pl:94` | Registra o palpite e aplica os efeitos |
@@ -102,20 +102,20 @@ Elm (navegador) --HTTP/JSON--> Python (FastAPI) --janus--> Prolog
 - [x] Fatos e regras como base de conhecimento: `word/1` (`words.pl:7`),
   `resposta/1` (`autoplay.pl:8`), `efeito/2` (`caos.pl:44`), `so_na_tela/1`
   (`caos.pl:59`), `inverter_cor/2` (`caos.pl:174`) e `valor/2`
-  (`strategy.pl:151`)
+  (`strategy.pl:150`)
 - [x] Unificação e casamento de padrões: `verdes/4` (`feedback.pl:18`), em
   que a mesma variável `Letra` nas duas listas exige letras iguais, e
   `estado(R, Linhas, _, Max)` nas cabeças de `aplicar_efeito/4`
   (`caos.pl:243`)
 - [x] Recursão (inclusive sobre listas): `verdes/4`, `amarelos/3`
   (`feedback.pl:27`), `consistente/2` (`candidates.pl:16`), `joga/3`
-  (`autoplay.pl:31`), `conta/6` (`strategy.pl:131`) e `melhor/6`
-  (`strategy.pl:110`)
+  (`autoplay.pl:31`), `conta/6` (`strategy.pl:130`) e `melhor/6`
+  (`strategy.pl:109`)
 - [x] Backtracking e múltiplas soluções: `candidates/2`
   (`candidates.pl:25`), que gera com `word/1` e testa com `consistent/2`, e
   `efeito_possivel/2` (`caos.pl:218`)
 - [x] `findall/3`, `bagof/3`, `setof/3` ou similares: `candidates/2`,
-  `palpites/3` (`strategy.pl:88`), `nova_partida/1` (`caos.pl:70`) e
+  `palpites/3` (`strategy.pl:87`), `nova_partida/1` (`caos.pl:70`) e
   `sortear_efeito/2` (`caos.pl:212`)
 - [x] Corte (`!`) ou negação (`\+`), e por que foram necessários: `!` em
   `verdes/4`, para uma letra verde não ser testada como amarela;
@@ -124,12 +124,12 @@ Elm (navegador) --HTTP/JSON--> Python (FastAPI) --janus--> Prolog
   fora da base
 - [ ] Programação por restrições (CLP(FD) ou outra)
 - [x] Predicados de ordem superior: `maplist` em `consistente/2`
-  (`candidates.pl:18`), `foldl` em `codigo/2` (`strategy.pl:144`),
+  (`candidates.pl:18`), `foldl` em `codigo/2` (`strategy.pl:143`),
   `include` em `contar/3` (`caos.pl:179`) e `forall` em `load_words/1`
   (`words.pl:7`)
 - [x] Outro: estado das partidas com `assertz/1` (`caos.pl:76`) e
   `retract/1` (`caos.pl:108`), e `setarg/3` no contador de
-  `maior_grupo/4` (`strategy.pl:138`), por desempenho
+  `maior_grupo/4` (`strategy.pl:137`), por desempenho
 
 ### 5.3 Trecho em destaque
 
